@@ -1,6 +1,7 @@
 import unittest
 from os import remove, path
-import dbinterface as dbi
+
+from dt_sql import dbinterface as dbi
 
 
 class TestDBConnectInit(unittest.TestCase):

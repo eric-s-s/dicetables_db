@@ -1,7 +1,9 @@
-import unittest
 import pickle
-import dbinterface as dbi
+import unittest
+
 import dicetables as dt
+
+from dt_sql import dbinterface as dbi
 
 
 class TestDBConnect(unittest.TestCase):
