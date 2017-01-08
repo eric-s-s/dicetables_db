@@ -117,10 +117,34 @@ class DiceTableInjector(object):
 class DiceTableRetriever(object):
     def __init__(self, connector):
         self.conn = connector
-        self.priorities = len(connector.get_tables()) - 1
+
+    def get_db_priorities(self):
+        return len(self.conn.get_tables()) - 1
 
     def get_candidates(self, dice_list):
+        db_priorities = self.get_db_priorities()
+        if db_priorities == 0:
+            return []
         priority_list = get_priority_list(dice_list)
+        priority0 = priority_list[0]
+        command_select = "SELECT priority0.id, priority0.number"
+        command_join = " from\n  priority0"
+        command_where = "\nwhere\n  priority0.die = '{0[0]!r}' and priority0.number <= {0[1]}".format(priority0)
+        for all_priorities in range(1, db_priorities):
+            command_join += "\n  left outer join priority{0} on priority{1}.id = priority{0}.id".format(
+                all_priorities, all_priorities - 1
+            )
+        for included_priority in range(1, len(priority_list)):
+            command_select += ", priority{}.number".format(included_priority)
+            new_where = ("\n  and (priority{0}.die = '{1[0]!r}' and priority{0}.number <= {1[1]} or" +
+                         "\n       priority{0}.die is NULL)")
+            command_where += new_where.format(included_priority, priority_list[included_priority])
+        for excluded_priority in range(len(priority_list), db_priorities):
+            command_where += '\n  and priority{}.die is NULL'.format(excluded_priority)
+        command = command_select + command_join + command_where
+        print(command)
+        self.conn.cursor.execute(command)
+        return self.conn.cursor.fetchall()
 
 
 

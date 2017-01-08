@@ -144,6 +144,91 @@ class TestDiceTableInjector(unittest.TestCase):
         self.assertEqual(self.injector.priorities, 3)
 
 
+class TestTableRetriever(unittest.TestCase):
+    connection = dbi.DBConnect(':memory:', add_path=False)
+
+    def setUp(self):
+        self.connection.reset_table()
+        self.injector = dbi.DiceTableInjector(self.connection)
+        self.retriever = dbi.DiceTableRetriever(self.connection)
+
+    def tearDown(self):
+        del self.injector
+        del self.retriever
+
+    def test_get_db_priorities(self):
+        self.assertEqual(self.retriever.get_db_priorities(), 0)
+        self.injector.add_table(dt.DiceTable.new().add_die(dt.Die(2)))
+        self.assertEqual(self.retriever.get_db_priorities(), 1)
+        self.injector.add_table(dt.DiceTable.new().add_die(dt.Die(3)))
+        self.assertEqual(self.retriever.get_db_priorities(), 1)
+        self.injector.add_table(dt.DiceTable.new().add_die(dt.Die(3)).add_die(dt.Die(2)))
+        self.assertEqual(self.retriever.get_db_priorities(), 2)
+
+    def test_get_candidates_empty_db_returns_empty_list(self):
+        table = dt.DiceTable.new().add_die(dt.Die(3))
+        self.assertEqual(self.retriever.get_candidates(table.get_list()), [])
+
+    def test_get_candidates_no_match_returns_empty_list(self):
+        table = dt.DiceTable.new().add_die(dt.Die(3))
+        self.injector.add_table(dt.DiceTable.new().add_die(dt.Die(2)))
+        self.assertEqual(self.retriever.get_candidates(table.get_list()), [])
+
+    def test_get_candidates_one_match_one_priority(self):
+        table = dt.DiceTable.new().add_die(dt.Die(3))
+        self.injector.add_table(table)  # id 0
+        self.injector.add_table(dt.DiceTable.new().add_die(dt.Die(2)))  # id 1
+        self.assertEqual(self.retriever.get_candidates(table.get_list()), [(0, 1)])
+
+    def test_get_candidates_many_matches_one_priority(self):
+        table = dt.DiceTable.new().add_die(dt.Die(3), 5)
+        self.injector.add_table(table)  # id 0
+        self.injector.add_table(dt.DiceTable.new().add_die(dt.Die(2)))  # id 1
+        self.injector.add_table(dt.DiceTable.new().add_die(dt.Die(3), 3))  # id 2
+        self.injector.add_table(dt.DiceTable.new().add_die(dt.Die(4)))  # id 3
+        self.injector.add_table(dt.DiceTable.new().add_die(dt.Die(3), 1))  # id 4
+        self.assertEqual(self.retriever.get_candidates(table.get_list()), [(0, 5), (2, 3), (4, 1)])
+
+    def test_get_candidates_many_matches_one_priority_does_not_include_matches_with_more_priorities(self):
+        table = dt.DiceTable.new().add_die(dt.Die(3), 5)
+        self.injector.add_table(table)  # id 0
+        self.injector.add_table(dt.DiceTable.new().add_die(dt.Die(2)))  # id 1
+        self.injector.add_table(dt.DiceTable.new().add_die(dt.Die(3), 3).add_die(dt.Die(2)))  # id 2
+        self.injector.add_table(dt.DiceTable.new().add_die(dt.Die(4)))  # id 3
+        self.injector.add_table(dt.DiceTable.new().add_die(dt.Die(3), 1))  # id 4
+        self.assertEqual(self.retriever.get_candidates(table.get_list()), [(0, 5), (4, 1)])
+
+    def test_get_candidates_many_matches_two_priorities(self):
+        table = dt.DiceTable.new().add_die(dt.Die(3), 5).add_die(dt.Die(2), 2)
+        self.injector.add_table(table)  # id 0 YES
+        self.injector.add_table(dt.DiceTable.new().add_die(dt.Die(2), 10).add_die(dt.Die(3)))  # id 1 NO
+        self.injector.add_table(dt.DiceTable.new().add_die(dt.Die(3), 3).add_die(dt.Die(2)))  # id 2 YES
+        self.injector.add_table(dt.DiceTable.new().add_die(dt.Die(3), 2).add_die(dt.Die(4)))  # id 3 NO
+        self.injector.add_table(dt.DiceTable.new().add_die(dt.Die(3), 1))  # id 4 YES
+        self.assertEqual(self.retriever.get_candidates(table.get_list()),
+                         [(0, 5, 2), (2, 3, 1), (4, 1, None)])
+
+    def test_get_candidates_many_matches_two_priorities_three_priorities_total(self):
+        table = dt.DiceTable.new().add_die(dt.Die(3), 5).add_die(dt.Die(2), 2)
+        self.injector.add_table(table)  # id 0 YES
+        self.injector.add_table(dt.DiceTable.new().add_die(dt.Die(2), 10).add_die(dt.Die(3)))  # id 1 NO
+        self.injector.add_table(dt.DiceTable.new().add_die(dt.Die(3), 3).add_die(dt.Die(2)))  # id 2 YES
+        self.injector.add_table(dt.DiceTable.new().add_die(dt.Die(3), 2).add_die(dt.Die(4)))  # id 3 NO
+        self.injector.add_table(dt.DiceTable.new().add_die(dt.Die(3), 1))  # id 4 YES
+        three_types = dt.DiceTable.new().add_die(dt.Die(3), 3).add_die(dt.Die(2)).add_die(dt.Die(1))
+        self.injector.add_table(three_types)  # id 5 NO
+        self.assertEqual(self.retriever.get_candidates(table.get_list()),
+                         [(0, 5, 2), (2, 3, 1), (4, 1, None)])
+
+    def test_get_candidates_out_of_order_matches(self):
+        table = dt.DiceTable.new().add_die(dt.Die(3), 5).add_die(dt.Die(2), 4)
+        reverse_match = dt.DiceTable.new().add_die(dt.Die(2), 4).add_die(dt.Die(3))
+        missing_first_match = dt.DiceTable.new().add_die(dt.Die(2), 4)
+        self.injector.add_table(reverse_match)
+        self.injector.add_table(missing_first_match)
+        self.assertEqual(self.retriever.get_candidates(table.get_list()),
+                         [(0, None, 4), (1, 1, 4)])
+
     def test_prioritize(self):
         test = (dt.WeightedDie({1: 2, 2: 3}), 10)
         self.assertEqual(dbi.prioritize(test), 2**2 * 100 + 5)
