@@ -4,17 +4,15 @@ from itertools import combinations
 import dicetables as dt
 
 
-class DBConnect(object):
-    def __init__(self, location, add_path=True):
-        if add_path:
-            location = 'E:/work/database/' + location
-        self._file_name = location
+class Connection(object):
+    def __init__(self, path_name):
+        self._path = path_name
         self._connection = None
         self._cursor = None
         self.start_up()
         if self.is_empty():
             self._set_up()
-        if not self.has_dicetables() or not self.is_dicetables_correct():
+        if not self.has_master() or not self.is_master_correct():
             self.abort()
             raise ValueError('wrong type of database')
 
@@ -22,17 +20,18 @@ class DBConnect(object):
     def cursor(self):
         return self._cursor
 
-    def has_dicetables(self):
-        return 'dicetables' in self.get_tables()
+    def has_master(self):
+        return 'master' in self.get_tables()
 
-    def is_dicetables_correct(self):
-        columns = self.get_table_data('dicetables')
-        if len(columns) != 2:
+    def is_master_correct(self):
+        columns = self.get_table_data('master')
+        if len(columns) < 3:
             return False
         """col number, name, type, can_null, default, is_primary_key"""
         col0 = (0, 'id', 'INTEGER', 0, None, 1)
-        col1 = (1, 'dt', 'BLOB', 0, None, 0)
-        if col0 != columns[0] or col1 != columns[1]:
+        col1 = (1, 'bytes', 'BLOB', 0, None, 0)
+        col2 = (2, 'dice_score', 'INTEGER', 0, None, 0)
+        if col0 != columns[0] or col1 != columns[1] or col2 != columns[2]:
             return False
         return True
 
@@ -47,14 +46,8 @@ class DBConnect(object):
         self._cursor.execute("PRAGMA table_info([{}])".format(table_name))
         return self._cursor.fetchall()
 
-    def get_table_data_all(self):
-        out = []
-        for table_name in self.get_tables():
-            out.append((table_name, self.get_table_data(table_name)))
-        return out
-
     def _set_up(self):
-        self._cursor.execute("CREATE TABLE dicetables (id INTEGER, dt BLOB, PRIMARY KEY(id))")
+        self._cursor.execute("CREATE TABLE master (id INTEGER, [bytes] BLOB, dice_score INTEGER, PRIMARY KEY(id))")
 
     def reset_table(self):
         for table in self.get_tables():
@@ -62,7 +55,7 @@ class DBConnect(object):
         self._set_up()
 
     def start_up(self):
-        self._connection = lite.connect(self._file_name)
+        self._connection = lite.connect(self._path)
         self._cursor = self._connection.cursor()
 
     def abort(self):
@@ -87,16 +80,16 @@ class InMemoryInformation(object):
         self._next_available_id = self._get_next_id()
 
     def _get_die_names(self):
-        data = self._conn.get_table_data('dicetables')
-        return [col_data[1] for col_data in data[2:]]
+        data = self._conn.get_table_data('master')
+        return [col_data[1] for col_data in data[3:]]
 
     def _get_next_id(self):
-        db_max = self._conn.cursor.execute('select max(id) from dicetables').fetchone()[0]
+        db_max = self._conn.cursor.execute('select max(id) from master').fetchone()[0]
         if db_max is None:
             return 0
         return db_max + 1
 
-    def has_die(self, die_name):
+    def has_die_column(self, die_name):
         return die_name in self._die_names
 
     def has_table(self, table_name):
@@ -121,8 +114,8 @@ class InMemoryInformation(object):
         if not self.has_table(table_name):
             self._tables.append(table_name)
 
-    def add_die(self, die_name):
-        if not self.has_die(die_name):
+    def add_die_column(self, die_name):
+        if not self.has_die_column(die_name):
             self._die_names.append(die_name)
 
 
@@ -144,15 +137,15 @@ class DiceTableInjector(object):
 
     def add_table(self, table):
         die_names = [repr(die_num[0]) for die_num in table.get_list()]
-        types_table_name = self._update_tables(die_names)
-        self._update_dicetables_cols(die_names)
-        command1, values1 = self._get_dicetables_command(table)
+        types_table_name = self._update_types_tables(die_names)
+        self._update_master_cols(die_names)
+        command1, values1 = self._get_command_for_master(table)
         self.conn.cursor.execute(command1, values1)
-        command2, values2 = self._get_types_table_command(table.get_list(), types_table_name)
+        command2, values2 = self._get_command_for_types_table(table.get_list(), types_table_name)
         self.conn.cursor.execute(command2, values2)
         self.info.increment_id()
 
-    def _update_tables(self, die_names):
+    def _update_types_tables(self, die_names):
         new_table_name = '&'.join(die_names)
         if not self.info.has_table(new_table_name):
             command = 'CREATE TABLE [{}] (id INTEGER'.format(new_table_name)
@@ -163,24 +156,24 @@ class DiceTableInjector(object):
             self.info.add_table(new_table_name)
         return new_table_name
 
-    def _update_dicetables_cols(self, die_names):
+    def _update_master_cols(self, die_names):
         for die_repr in die_names:
-            if not self.info.has_die(die_repr):
-                command = 'ALTER TABLE dicetables ADD COLUMN [{}] INTEGER DEFAULT 0'.format(die_repr)
+            if not self.info.has_die_column(die_repr):
+                command = 'ALTER TABLE master ADD COLUMN [{}] INTEGER DEFAULT 0'.format(die_repr)
                 self.cursor.execute(command)
-                self.info.add_die(die_repr)
+                self.info.add_die_column(die_repr)
 
-    def _get_dicetables_command(self, dice_table):
-        command = 'INSERT INTO dicetables (id, dt'
-        values = [self.info.available_id, dice_table]
+    def _get_command_for_master(self, dice_table):
+        command = 'INSERT INTO master (id, [bytes], dice_score'
+        values = [self.info.available_id, dice_table, get_dice_score(dice_table.get_list())]
         for die, num in dice_table.get_list():
             command += ', [{!r}]'.format(die)
             values.append(num)
-        command += ') VALUES(?, ?'
+        command += ') VALUES(?, ?, ?'
         command += ', ?'*len(dice_table.get_list()) + ')'
         return command, tuple(values)
 
-    def _get_types_table_command(self, dice_list, types_table_name):
+    def _get_command_for_types_table(self, dice_list, types_table_name):
         command = 'INSERT INTO [{}] (id'.format(types_table_name)
         values = [self.info.available_id]
         for die, num in dice_list:
@@ -188,42 +181,48 @@ class DiceTableInjector(object):
             values.append(num)
         command += ') VALUES(?'
         command += ', ?'*len(dice_list) + ')'
-        print(command, values)
         return command, tuple(values)
 
-# class DiceTableRetriever(object):
-#     def __init__(self, connector):
-#         self.conn = connector
-#
-#     def get_db_priorities(self):
-#         return len(self.conn.get_tables()) - 1
-#
-#     def get_candidates(self, dice_list):
-#         db_priorities = self.get_db_priorities()
-#         if db_priorities == 0:
-#             return []
-#         priority_list = get_priority_list(dice_list)
-#         priority0 = priority_list[0]
-#         command_select = "SELECT priority0.id, priority0.number"
-#         command_join = " from\n  priority0"
-#         command_where = "\nwhere\n  priority0.die = '{0[0]!r}' and priority0.number <= {0[1]}".format(priority0)
-#         for all_priorities in range(1, db_priorities):
-#             command_join += "\n  left outer join priority{0} on priority{1}.id = priority{0}.id".format(
-#                 all_priorities, all_priorities - 1
-#             )
-#         for included_priority in range(1, len(priority_list)):
-#             command_select += ", priority{}.number".format(included_priority)
-#             new_where = ("\n  and (priority{0}.die = '{1[0]!r}' and priority{0}.number <= {1[1]} or" +
-#                          "\n       priority{0}.die is NULL)")
-#             command_where += new_where.format(included_priority, priority_list[included_priority])
-#         for excluded_priority in range(len(priority_list), db_priorities):
-#             command_where += '\n  and priority{}.die is NULL'.format(excluded_priority)
-#         command = command_select + command_join + command_where
-#         print(command)
-#         self.conn.cursor.execute(command)
-#         return self.conn.cursor.fetchall()
+    def find_nearest_table(self, dice_list):
+        acceptable_score_ratio = 0.80
+        input_dice_score = float(get_dice_score(dice_list))
 
+        combos_generator = generate_table_names(dice_list)
+        table_names = next(combos_generator)
 
+        id_number = None
+        highest_score = 0
+        dice_score_ratio = 0
+        while table_names != [''] and dice_score_ratio < acceptable_score_ratio:
+            safe_table_names = self._remove_nonexistent_tables(table_names)
+            for table in safe_table_names:
+                command, values = self._get_command_for_search(dice_list, table)
+                result = self.cursor.execute(command, values).fetchone()
+                if result:
+                    new_id, new_score = result
+                    if new_score > highest_score:
+                        id_number = new_id
+                        highest_score = new_score
+                        dice_score_ratio = float(new_score) / input_dice_score
+            table_names = next(combos_generator)
+        return id_number
+
+    def _remove_nonexistent_tables(self, table_names):
+        return [name for name in table_names if self.info.has_table(name)]
+
+    def _get_command_for_search(self, dice_list, table):
+        command = ('SELECT master.id, max(master.dice_score) FROM master JOIN [{}]\n'.format(table) +
+                   'ON master.id = [{}].id\n'.format(table) +
+                   'WHERE master.dice_score <= ?')
+        values = [get_dice_score(dice_list)]
+        safe_dice_list = self._remove_nonexistent_dice(dice_list)
+        for die, num in safe_dice_list:
+            command += '\nAND master.[{!r}] <= ?'.format(die)
+            values.append(num)
+        return command, tuple(values)
+
+    def _remove_nonexistent_dice(self, dice_list):
+        return [die_num for die_num in dice_list if self.info.has_die_column(repr(die_num[0]))]
 
 """select priority0.*, priority1.die, priority1.number
 from priority0 left outer join priority1 on priority0.id = priority1.id
@@ -247,4 +246,18 @@ def get_combos(lst):
         r -= 1
 
 
+def generate_table_names(dice_list):
+    dice_names_generator = get_combos([repr(die_num[0]) for die_num in dice_list])
+    while True:
+        name_groups = next(dice_names_generator)
+        yield ['&'.join(die_group) for die_group in name_groups]
 
+
+def get_dice_score(dice_list):
+    score = 0
+    for die, num in dice_list:
+        size = die.get_size()
+        if die.get_weight() > size:
+            size += 1
+        score += size * num
+    return score
