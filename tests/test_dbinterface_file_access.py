@@ -1,7 +1,7 @@
 import unittest
 from os import remove, path
 
-from dt_sql import dbinterface as dbi
+from mongo_dicetables import dbinterface as dbi
 
 
 class TestDBConnectInit(unittest.TestCase):

@@ -3,7 +3,7 @@ import unittest
 
 import dicetables as dt
 
-from dt_sql import dbinterface as dbi
+from mongo_dicetables import dbinterface as dbi
 
 
 class TestToolFuncs(unittest.TestCase):
