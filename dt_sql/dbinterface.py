@@ -126,23 +126,19 @@ def adapt_dice_table(dice_table):
 lite.register_adapter(dt.DiceTable, adapt_dice_table)
 
 
-class DiceTableInjector(object):
+class ConnectionCommandInterface(object):
     def __init__(self, connection):
-        self.conn = connection
+        self._conn = connection
         self.info = InMemoryInformation(connection)
-
-    @property
-    def cursor(self):
-        return self.conn.cursor
 
     def add_table(self, table):
         die_names = [repr(die_num[0]) for die_num in table.get_list()]
         types_table_name = self._update_types_tables(die_names)
         self._update_master_cols(die_names)
         command1, values1 = self._get_command_for_master(table)
-        self.conn.cursor.execute(command1, values1)
+        self._conn.cursor.execute(command1, values1)
         command2, values2 = self._get_command_for_types_table(table.get_list(), types_table_name)
-        self.conn.cursor.execute(command2, values2)
+        self._conn.cursor.execute(command2, values2)
         self.info.increment_id()
 
     def _update_types_tables(self, die_names):
@@ -152,7 +148,7 @@ class DiceTableInjector(object):
             for die_repr in die_names:
                 command += ', [{}] INTEGER'.format(die_repr)
             command += ')'
-            self.cursor.execute(command)
+            self._conn.cursor.execute(command)
             self.info.add_table(new_table_name)
         return new_table_name
 
@@ -160,7 +156,7 @@ class DiceTableInjector(object):
         for die_repr in die_names:
             if not self.info.has_die_column(die_repr):
                 command = 'ALTER TABLE master ADD COLUMN [{}] INTEGER DEFAULT 0'.format(die_repr)
-                self.cursor.execute(command)
+                self._conn.cursor.execute(command)
                 self.info.add_die_column(die_repr)
 
     def _get_command_for_master(self, dice_table):
@@ -197,7 +193,7 @@ class DiceTableInjector(object):
             safe_table_names = self._remove_nonexistent_tables(table_names)
             for table in safe_table_names:
                 command, values = self._get_command_for_search(dice_list, table)
-                result = self.cursor.execute(command, values).fetchone()
+                result = self._conn.cursor.execute(command, values).fetchone()
                 if result:
                     new_id, new_score = result
                     if new_score > highest_score:
@@ -236,6 +232,14 @@ left outer join priority2 on priotity0.id = priority2.id
 where
 priority0.die = 'Die(4)' and 10 < priority0.number <100
 and priority1.die
+
+mongodb notes
+import pymongo
+from bson.binary import Binary
+
+{'my_data': Binary(some bytes)}
+
+
 """
 
 
