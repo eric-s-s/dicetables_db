@@ -250,6 +250,19 @@ def get_combos(lst):
         r -= 1
 
 
+def get_key_and_list_pairs(dice_list, depth):
+    names_and_numbers = [(repr(die), num) for die, num in dice_list]
+    r_value = len(dice_list) - depth
+    if r_value <= 0:
+        return []
+    generator = combinations(names_and_numbers, r_value)
+    out = []
+    for dice_tuple in generator:
+        key = [die_num[0] for die_num in dice_tuple]
+        out.append((key, list(dice_tuple)))
+    return out
+
+
 def generate_table_names(dice_list):
     dice_names_generator = get_combos([repr(die_num[0]) for die_num in dice_list])
     while True:
