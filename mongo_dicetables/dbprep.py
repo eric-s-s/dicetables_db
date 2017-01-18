@@ -1,15 +1,15 @@
 import pickle
 from itertools import combinations
-import dicetables as dt
 
 
 class PrepDiceTable(object):
-    def __init__(self, dice_table, group_as_list=True):
+    def __init__(self, dice_table):
         input_list = dice_table.get_list()
-        self._serialized = pickle.dumps(dice_table)
+        if not input_list:
+            raise ValueError('DiceTable may not be empty.')
+        self._serialized = Serializer.serialize(dice_table)
         self._score = get_score(input_list)
         self._label_list = get_label_list(input_list)
-        self._key_as_list = group_as_list
 
     def get_score(self):
         return self._score
@@ -20,17 +20,11 @@ class PrepDiceTable(object):
     def get_label_list(self):
         return self._label_list[:]
 
-    def get_group(self):
-        if self._key_as_list:
-            return self.get_group_as_list()
-        else:
-            return self.get_group_as_string()
-
-    def get_group_as_list(self):
+    def get_group_list(self):
         return [repr_num[0] for repr_num in self._label_list]
 
-    def get_group_as_string(self):
-        return '&'.join(self.get_group_as_list())
+    def get_group(self):
+        return '&'.join(self.get_group_list())
 
     def get_dict(self):
         output = {'group': self.get_group(), 'score': self._score, 'serialized': self._serialized}
@@ -41,8 +35,40 @@ class PrepDiceTable(object):
 
 class RetrieveDiceTable(object):
     def __init__(self, dice_list):
+        if not dice_list:
+            raise ValueError('List may not be empty')
         self._score = get_score(dice_list)
         self._labels = get_label_list(dice_list)
+        self.search_params = self._search_generator()
+
+    def _search_generator(self):
+        elements_in_group = len(self._labels)
+        while elements_in_group > 0:
+            out = []
+
+            for repr_num_tuple in combinations(self._labels, elements_in_group):
+                group = [repr_num[0] for repr_num in repr_num_tuple]
+                group_string = '&'.join(group)
+                out.append((group_string, dict(repr_num_tuple)))
+            elements_in_group -= 1
+            yield out
+
+    def get_score(self):
+        return self._score
+
+    @staticmethod
+    def deserialize(serialized_data):
+        return Serializer.deserialize(serialized_data)
+
+
+class Serializer(object):
+    @staticmethod
+    def serialize(thing):
+        return pickle.dumps(thing)
+
+    @staticmethod
+    def deserialize(data):
+        return pickle.loads(data)
 
 
 def get_score(dice_list):
@@ -57,17 +83,3 @@ def get_score(dice_list):
 
 def get_label_list(dice_list):
     return [(repr(die), num) for die, num in dice_list]
-
-
-def get_key_and_list_pairs(dice_list, depth):
-    names_and_numbers = [(repr(die), num) for die, num in dice_list]
-    r_value = len(dice_list) - depth
-    if r_value <= 0:
-        return []
-    generator = combinations(names_and_numbers, r_value)
-    out = []
-    for dice_tuple in generator:
-        key = [die_num[0] for die_num in dice_tuple]
-        out.append((key, list(dice_tuple)))
-    return out
-

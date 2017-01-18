@@ -5,7 +5,7 @@ import dicetables as dt
 import mongo_dicetables.dbprep as prep
 
 
-class TestToolFuncs(unittest.TestCase):
+class TestDBPrep(unittest.TestCase):
     
     def test_get_score_empty(self):
         self.assertEqual(prep.get_score([]), 0)
@@ -28,12 +28,23 @@ class TestToolFuncs(unittest.TestCase):
         self.assertEqual(prep.get_label_list([(dt.Die(3), 2), (dt.WeightedDie({2: 2}), 1)]),
                          [('Die(3)', 2), ('WeightedDie({1: 0, 2: 2})', 1)])
 
+    def test_Serializer_serialize(self):
+        self.assertEqual(prep.Serializer.serialize(12), pickle.dumps(12))
+
+    def test_Serializer_deserialize(self):
+        data = prep.Serializer.serialize(12)
+        self.assertNotEqual(data, 12)
+        self.assertEqual(prep.Serializer.deserialize(data), 12)
+
     def test_PrepDiceTable_init(self):
         table = dt.DiceTable.new().add_die(dt.Die(2))
         prepped = prep.PrepDiceTable(table)
         self.assertEqual(prepped.get_label_list(), [('Die(2)', 1)])
         self.assertEqual(prepped.get_score(), 2)
-        self.assertEqual(prepped.get_serialized(), pickle.dumps(table))
+        self.assertEqual(prepped.get_serialized(), prep.Serializer.serialize(table))
+
+    def test_PrepDiceTable_disallows_empty_table(self):
+        self.assertRaises(ValueError, prep.PrepDiceTable, dt.DiceTable.new())
 
     def test_PrepDiceTable_get_label_list_does_not_mutate_original(self):
         prepped = prep.PrepDiceTable(dt.DiceTable.new().add_die(dt.Die(2)))
@@ -41,44 +52,66 @@ class TestToolFuncs(unittest.TestCase):
         to_mutate[0] = 'oops'
         self.assertEqual(prepped.get_label_list(), [('Die(2)', 1)])
 
-    def test_PrepDiceTable_get_group_as_list(self):
+    def test_PrepDiceTable_get_group_list(self):
         table = dt.DiceTable.new().add_die(dt.Die(2)).add_die(dt.Die(3))
         prepped = prep.PrepDiceTable(table)
-        self.assertEqual(prepped.get_group_as_list(), ['Die(2)', 'Die(3)'])
+        self.assertEqual(prepped.get_group_list(), ['Die(2)', 'Die(3)'])
 
-    def test_PrepDiceTable_get_group_as_string(self):
+    def test_PrepDiceTable_get_group(self):
         table = dt.DiceTable.new().add_die(dt.Die(2)).add_die(dt.Die(3))
         prepped = prep.PrepDiceTable(table)
-        self.assertEqual(prepped.get_group_as_string(), 'Die(2)&Die(3)')
+        self.assertEqual(prepped.get_group(), 'Die(2)&Die(3)')
 
-    def test_PrepDiceTable_group_as_list_boolean_through_get_group(self):
-        table = dt.DiceTable.new().add_die(dt.Die(2)).add_die(dt.Die(3))
-        p_true = prep.PrepDiceTable(table)
-        p_false = prep.PrepDiceTable(table, False)
-
-        self.assertEqual(p_true.get_group(), ['Die(2)', 'Die(3)'])
-        self.assertEqual(p_false.get_group(), 'Die(2)&Die(3)')
-
-    def test_PrepDiceTable_get_dict_group_as_list_true(self):
+    def test_PrepDiceTable_get_dict(self):
         table = dt.DiceTable.new().add_die(dt.Die(2)).add_die(dt.Die(3))
         prepped = prep.PrepDiceTable(table)
-        expected = {'group': ['Die(2)', 'Die(3)'],
-                    'score': 5,
-                    'serialized': pickle.dumps(table),
-                    'Die(2)': 1,
-                    'Die(3)': 1}
-        self.assertEqual(prepped.get_dict(), expected)
-
-    def test_PrepDiceTable_get_dict_group_as_list_false(self):
-        table = dt.DiceTable.new().add_die(dt.Die(2)).add_die(dt.Die(3))
-        prepped = prep.PrepDiceTable(table, False)
         expected = {'group': 'Die(2)&Die(3)',
                     'score': 5,
-                    'serialized': pickle.dumps(table),
+                    'serialized': prep.Serializer.serialize(table),
                     'Die(2)': 1,
                     'Die(3)': 1}
         self.assertEqual(prepped.get_dict(), expected)
 
+    def test_RetrieveDiceTable_init_creates_score(self):
+        table_list = [(dt.Die(2), 2), (dt.Die(3), 1)]
+        retriever = prep.RetrieveDiceTable(table_list)
+        self.assertEqual(retriever.get_score(), (4 + 3))
 
+    def test_RetrieveDiceTable_init_disallows_empty_list(self):
+        self.assertRaises(ValueError, prep.RetrieveDiceTable, [])
+
+    def test_RetrieveDiceTable_get_next_search_params(self):
+        table_list = [(dt.Die(1), 4), (dt.Die(2), 2), (dt.Die(3), 1)]
+        retriever = prep.RetrieveDiceTable(table_list)
+        self.assertEqual(next(retriever.search_params), [('Die(1)&Die(2)&Die(3)',
+                                                          {'Die(1)': 4, 'Die(2)': 2, 'Die(3)': 1})])
+        self.assertEqual(next(retriever.search_params),
+                         [('Die(1)&Die(2)', {'Die(1)': 4, 'Die(2)': 2}),
+                          ('Die(1)&Die(3)', {'Die(1)': 4, 'Die(3)': 1}),
+                          ('Die(2)&Die(3)', {'Die(2)': 2, 'Die(3)': 1})]
+                         )
+        self.assertEqual(next(retriever.search_params),
+                         [('Die(1)', {'Die(1)': 4}),
+                          ('Die(2)', {'Die(2)': 2}),
+                          ('Die(3)', {'Die(3)': 1})]
+                         )
+        self.assertRaises(StopIteration, next, retriever.search_params)
+
+    def test_RetrieveDiceTable_get_next_search_params_stop_iteration(self):
+        table_list = [(dt.Die(1), 4), (dt.Die(2), 2), (dt.Die(3), 1)]
+        retriever = prep.RetrieveDiceTable(table_list)
+        result = [lst for lst in retriever.search_params]
+        self.assertEqual(len(result), 3)
+        self.assertEqual(result[0], [('Die(1)&Die(2)&Die(3)', {'Die(1)': 4, 'Die(2)': 2, 'Die(3)': 1})])
+        self.assertEqual(result[1],
+                         [('Die(1)&Die(2)', {'Die(1)': 4, 'Die(2)': 2}),
+                          ('Die(1)&Die(3)', {'Die(1)': 4, 'Die(3)': 1}),
+                          ('Die(2)&Die(3)', {'Die(2)': 2, 'Die(3)': 1})]
+                         )
+        self.assertEqual(result[2],
+                         [('Die(1)', {'Die(1)': 4}),
+                          ('Die(2)', {'Die(2)': 2}),
+                          ('Die(3)', {'Die(3)': 1})]
+                         )
 
 

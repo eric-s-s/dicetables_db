@@ -1,224 +1,96 @@
-import pickle
-import sqlite3 as lite
-from itertools import combinations
-import dicetables as dt
+from pymongo import MongoClient
+from bson.objectid import ObjectId
+import mongo_dicetables.dbprep as prep
 
 
 class Connection(object):
-    def __init__(self, path_name):
-        self._path = path_name
-        self._connection = None
-        self._cursor = None
-        self.start_up()
-        if self.is_empty():
-            self._set_up()
-        if not self.has_master() or not self.is_master_correct():
-            self.abort()
-            raise ValueError('wrong type of database')
+    def __init__(self, db_name, collection_name, ip='localhost', port=27017):
+        self._client = MongoClient(ip, port)
+        self._db = self._client[db_name]
+        self._collection = self._db[collection_name]
 
-    @property
-    def cursor(self):
-        return self._cursor
+    def reset_collection(self):
+        self._db.drop_collection(self._collection.name)
 
-    def has_master(self):
-        return 'master' in self.get_tables()
+    def reset_database(self):
+        self._client.drop_database(self._db.name)
 
-    def is_master_correct(self):
-        columns = self.get_table_data('master')
-        if len(columns) < 3:
-            return False
-        """col number, name, type, can_null, default, is_primary_key"""
-        col0 = (0, 'id', 'INTEGER', 0, None, 1)
-        col1 = (1, 'bytes', 'BLOB', 0, None, 0)
-        col2 = (2, 'dice_score', 'INTEGER', 0, None, 0)
-        if col0 != columns[0] or col1 != columns[1] or col2 != columns[2]:
-            return False
-        return True
+    def find(self, params_dict, restrictions=None):
+        """
+        ex: {'score': {'$lte': 10}, 'group': 'Die(1)', 'Die(1)': {'$lte': 3}}, {'_id': 1, 'score': 1} < won't show other
 
-    def is_empty(self):
-        return not self.get_tables()
+        :return: iterable of results
+        """
+        return self._collection.find(params_dict, restrictions)
 
-    def get_tables(self):
-        self._cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-        return [element[0] for element in self._cursor.fetchall()]
+    def find_one(self, params_dict, restrictions=None):
+        return self._collection.find_one(params_dict, restrictions)
 
-    def get_table_data(self, table_name):
-        self._cursor.execute("PRAGMA table_info([{}])".format(table_name))
-        return self._cursor.fetchall()
-
-    def _set_up(self):
-        self._cursor.execute("CREATE TABLE master (id INTEGER, [bytes] BLOB, dice_score INTEGER, PRIMARY KEY(id))")
-
-    def reset_table(self):
-        for table in self.get_tables():
-            self._cursor.execute('DROP TABLE [{}]'.format(table))
-        self._set_up()
-
-    def start_up(self):
-        self._connection = lite.connect(self._path)
-        self._cursor = self._connection.cursor()
-
-    def abort(self):
-        self._connection.close()
-
-    def shut_down(self):
-        self._connection.commit()
-        self._connection.close()
+    def insert(self, document):
+        """
+        ex: {'score': 5, 'serialized': somebytes}
 
 
-class InMemoryInformation(object):
-    def __init__(self, connection):
-        self._conn = connection
-        self._tables = None
-        self._die_names = None
-        self._next_available_id = None
-        self.refresh_information()
-
-    def refresh_information(self):
-        self._tables = self._conn.get_tables()
-        self._die_names = self._get_die_names()
-        self._next_available_id = self._get_next_id()
-
-    def _get_die_names(self):
-        data = self._conn.get_table_data('master')
-        return [col_data[1] for col_data in data[3:]]
-
-    def _get_next_id(self):
-        db_max = self._conn.cursor.execute('select max(id) from master').fetchone()[0]
-        if db_max is None:
-            return 0
-        return db_max + 1
-
-    def has_die_column(self, die_name):
-        return die_name in self._die_names
-
-    def has_table(self, table_name):
-        return table_name in self._tables
-
-    @property
-    def available_id(self):
-        return self._next_available_id
-
-    @property
-    def tables(self):
-        return self._tables[:]
-
-    @property
-    def dice(self):
-        return self._die_names[:]
-
-    def increment_id(self):
-        self._next_available_id += 1
-
-    def add_table(self, table_name):
-        if not self.has_table(table_name):
-            self._tables.append(table_name)
-
-    def add_die_column(self, die_name):
-        if not self.has_die_column(die_name):
-            self._die_names.append(die_name)
+        :return: ObjectId
+        """
+        return self._collection.insert_one(document).inserted_id
 
 
-def adapt_dice_table(dice_table):
-    return pickle.dumps(dice_table)
+def get_id_string(id_object):
+    return str(id_object)
 
 
-lite.register_adapter(dt.DiceTable, adapt_dice_table)
+def get_id_object(id_string):
+    return ObjectId(id_string)
 
 
 class ConnectionCommandInterface(object):
     def __init__(self, connection):
         self._conn = connection
-        self.info = InMemoryInformation(connection)
 
     def add_table(self, table):
-        die_names = [repr(die_num[0]) for die_num in table.get_list()]
-        types_table_name = self._update_types_tables(die_names)
-        self._update_master_cols(die_names)
-        command1, values1 = self._get_command_for_master(table)
-        self._conn.cursor.execute(command1, values1)
-        command2, values2 = self._get_command_for_types_table(table.get_list(), types_table_name)
-        self._conn.cursor.execute(command2, values2)
-        self.info.increment_id()
+        adder = prep.PrepDiceTable(table)
+        obj_id = self._conn.insert(adder.get_dict())
+        return get_id_string(obj_id)
 
-    def _update_types_tables(self, die_names):
-        new_table_name = '&'.join(die_names)
-        if not self.info.has_table(new_table_name):
-            command = 'CREATE TABLE [{}] (id INTEGER'.format(new_table_name)
-            for die_repr in die_names:
-                command += ', [{}] INTEGER'.format(die_repr)
-            command += ')'
-            self._conn.cursor.execute(command)
-            self.info.add_table(new_table_name)
-        return new_table_name
-
-    def _update_master_cols(self, die_names):
-        for die_repr in die_names:
-            if not self.info.has_die_column(die_repr):
-                command = 'ALTER TABLE master ADD COLUMN [{}] INTEGER DEFAULT 0'.format(die_repr)
-                self._conn.cursor.execute(command)
-                self.info.add_die_column(die_repr)
-
-    def _get_command_for_master(self, dice_table):
-        command = 'INSERT INTO master (id, [bytes], dice_score'
-        values = [self.info.available_id, dice_table, get_dice_score(dice_table.get_list())]
-        for die, num in dice_table.get_list():
-            command += ', [{!r}]'.format(die)
-            values.append(num)
-        command += ') VALUES(?, ?, ?'
-        command += ', ?'*len(dice_table.get_list()) + ')'
-        return command, tuple(values)
-
-    def _get_command_for_types_table(self, dice_list, types_table_name):
-        command = 'INSERT INTO [{}] (id'.format(types_table_name)
-        values = [self.info.available_id]
-        for die, num in dice_list:
-            command += ', [{!r}]'.format(die)
-            values.append(num)
-        command += ') VALUES(?'
-        command += ', ?'*len(dice_list) + ')'
-        return command, tuple(values)
-
-    def find_nearest_table(self, dice_list):
+    def find_nearest_table(self, dice_dict):
         acceptable_score_ratio = 0.80
-        input_dice_score = float(get_dice_score(dice_list))
+        finder = prep.RetrieveDiceTable(dice_dict)
 
-        combos_generator = generate_table_names(dice_list)
-        table_names = next(combos_generator)
+        dice_dict_score = finder.get_score()
 
         id_number = None
         highest_score = 0
         dice_score_ratio = 0
-        while table_names != [''] and dice_score_ratio < acceptable_score_ratio:
-            safe_table_names = self._remove_nonexistent_tables(table_names)
-            for table in safe_table_names:
-                command, values = self._get_command_for_search(dice_list, table)
-                result = self._conn.cursor.execute(command, values).fetchone()
-                if result:
-                    new_id, new_score = result
+        for search_param in finder.search_params:
+            if dice_score_ratio > acceptable_score_ratio:
+                break
+            for group, dice_dict in search_param:
+                query_dict = self._get_query_dict(dice_dict, group, dice_dict_score)
+                dict_list = list(self._conn.find(query_dict, {'_id': 1, 'score': 1}))
+                if dict_list:
+
+                    candidate = max(dict_list, key=lambda dictionary: dictionary['score'])
+                    new_score = candidate['score']
+                    new_id = candidate['_id']
+
                     if new_score > highest_score:
                         id_number = new_id
                         highest_score = new_score
-                        dice_score_ratio = float(new_score) / input_dice_score
-            table_names = next(combos_generator)
-        return id_number
+                        dice_score_ratio = float(new_score) / float(dice_dict_score)
+        return get_id_string(id_number)
 
-    def _remove_nonexistent_tables(self, table_names):
-        return [name for name in table_names if self.info.has_table(name)]
+    @staticmethod
+    def _get_query_dict(dice_dict, group, score):
+        output_dict = {'group': group, 'score': {'$lte': score}}
+        for die_repr, num in dice_dict.items():
+            output_dict[die_repr] = {'$lte': num}
+        return output_dict
 
-    def _get_command_for_search(self, dice_list, table):
-        command = ('SELECT master.id, max(master.dice_score) FROM master JOIN [{}]\n'.format(table) +
-                   'ON master.id = [{}].id\n'.format(table) +
-                   'WHERE master.dice_score <= ?')
-        values = [get_dice_score(dice_list)]
-        safe_dice_list = self._remove_nonexistent_dice(dice_list)
-        for die, num in safe_dice_list:
-            command += '\nAND master.[{!r}] <= ?'.format(die)
-            values.append(num)
-        return command, tuple(values)
-
-    def _remove_nonexistent_dice(self, dice_list):
-        return [die_num for die_num in dice_list if self.info.has_die_column(repr(die_num[0]))]
+    def get_table(self, id_str):
+        obj_id = get_id_object(id_str)
+        data = self._conn.find_one({'_id': obj_id}, {'_id': 0, 'serialized': 1})
+        return prep.Serializer.deserialize(data['serialized'])
 
 """select priority0.*, priority1.die, priority1.number
 from priority0 left outer join priority1 on priority0.id = priority1.id
@@ -241,40 +113,3 @@ from bson.binary import Binary
 
 
 """
-
-
-def get_combos(lst):
-    r = len(lst)
-    while r >= 0:
-        yield list(combinations(lst, r))
-        r -= 1
-
-
-def get_key_and_list_pairs(dice_list, depth):
-    names_and_numbers = [(repr(die), num) for die, num in dice_list]
-    r_value = len(dice_list) - depth
-    if r_value <= 0:
-        return []
-    generator = combinations(names_and_numbers, r_value)
-    out = []
-    for dice_tuple in generator:
-        key = [die_num[0] for die_num in dice_tuple]
-        out.append((key, list(dice_tuple)))
-    return out
-
-
-def generate_table_names(dice_list):
-    dice_names_generator = get_combos([repr(die_num[0]) for die_num in dice_list])
-    while True:
-        name_groups = next(dice_names_generator)
-        yield ['&'.join(die_group) for die_group in name_groups]
-
-
-def get_dice_score(dice_list):
-    score = 0
-    for die, num in dice_list:
-        size = die.get_size()
-        if die.get_weight() > size:
-            size += 1
-        score += size * num
-    return score

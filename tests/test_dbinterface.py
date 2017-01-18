@@ -6,46 +6,6 @@ import dicetables as dt
 import mongo_dicetables.dbinterface as dbi
 
 
-class TestToolFuncs(unittest.TestCase):
-    def test_get_combos_empty(self):
-        self.assertEqual(next(dbi.get_combos([])), [()])
-
-    def test_get_combos_one_element(self):
-        to_test = dbi.get_combos([1])
-        self.assertEqual(next(to_test), [(1,)])
-        self.assertEqual(next(to_test), [()])
-
-    def test_get_combos_many_elements(self):
-        to_test = dbi.get_combos([1, 2, 3])
-        self.assertEqual(next(to_test), [(1, 2, 3)])
-        self.assertEqual(next(to_test), [(1, 2), (1, 3), (2, 3)])
-        self.assertEqual(next(to_test), [(1,), (2,), (3,)])
-        self.assertEqual(next(to_test), [()])
-
-    def test_generate_table_names(self):
-        dice_list = [(dt.Die(1), 2), (dt.Die(2), 3), (dt.Die(3), 2)]
-        to_test = dbi.generate_table_names(dice_list)
-        self.assertEqual(next(to_test), ['Die(1)&Die(2)&Die(3)'])
-        self.assertEqual(next(to_test), ['Die(1)&Die(2)', 'Die(1)&Die(3)', 'Die(2)&Die(3)'])
-        self.assertEqual(next(to_test), ['Die(1)', 'Die(2)', 'Die(3)'])
-        self.assertEqual(next(to_test), [''])
-
-    def test_get_dice_score_empty(self):
-        self.assertEqual(dbi.get_dice_score([]), 0)
-
-    def test_get_dice_score_one(self):
-        self.assertEqual(dbi.get_dice_score([(dt.ModDie(3, 10), 4)]), 12)
-
-    def test_get_dice_score_non_zero_weight_normal(self):
-        self.assertEqual(dbi.get_dice_score([(dt.WeightedDie({1: 1, 5: 6}), 4)]), 24)  # size + 1
-
-    def test_get_dice_score_non_zero_weight_too_low(self):
-        self.assertEqual(dbi.get_dice_score([(dt.WeightedDie({1: 1, 5: 1}), 4)]), 20)  # size not + 1
-
-    def test_get_dice_score_multiple(self):
-        self.assertEqual(dbi.get_dice_score([(dt.WeightedDie({1: 1, 5: 6}), 4), (dt.ModDie(3, 10), 4)]), 36)
-
-
 class TestConnection(unittest.TestCase):
     connection = dbi.Connection(':memory:')
 
@@ -61,6 +21,12 @@ class TestConnection(unittest.TestCase):
     def test_has_master_false(self):
         self.connection.cursor.execute('drop table master;')
         self.assertFalse(self.connection.has_master())
+
+    def test_is_master_correct_true(self):
+        self.connection.cursor.execute('drop table master')
+        command = 'create table master (id INTEGER PRIMARY KEY, serialized BLOB, score INTEGER, [group] TEXT)'
+        self.connection.cursor.execute(command)
+        self.assertTrue(self.connection.is_master_correct())
 
     def test_is_master_correct_false_by_col_num(self):
         self.connection.cursor.execute('drop table master')
@@ -94,7 +60,7 @@ class TestConnection(unittest.TestCase):
 
     def test_reset_table(self):
         self.connection.cursor.execute('create table bob (a TEXT)')
-        self.connection.cursor.execute('insert into master (id, bytes) values(?, ?)', (5, 'hello'))
+        self.connection.cursor.execute('insert into master (id, serialized) values(?, ?)', (5, 'hello'))
         self.connection.reset_table()
         self.assertEqual(self.connection.get_tables(), ['master'])
         self.assertEqual(self.connection.cursor.execute('select * from master').fetchall(), [])
@@ -118,7 +84,7 @@ class TestDiceTableInjector(unittest.TestCase):
 
     def test_InMemoryInformation_init_non_empty(self):
         self.connection.cursor.execute('create table bob (a TEXT)')
-        self.connection.cursor.execute('insert into master (id, bytes) values(?, ?)', (100, 'hi'))
+        self.connection.cursor.execute('insert into master (id, serialized) values(?, ?)', (100, 'hi'))
         self.connection.cursor.execute('alter table master add column [Die(2)] INTEGER DEFAULT 0')
         self.connection.cursor.execute('alter table master add column [Die(1)] INTEGER DEFAULT 0')
 
@@ -130,7 +96,7 @@ class TestDiceTableInjector(unittest.TestCase):
     def test_InMemoryInformation_refresh_information(self):
         info = dbi.InMemoryInformation(self.connection)
         self.connection.cursor.execute('create table bob (a TEXT)')
-        self.connection.cursor.execute('insert into master (id, bytes) values(?, ?)', (100, 'hi'))
+        self.connection.cursor.execute('insert into master (id, serialized) values(?, ?)', (100, 'hi'))
         self.connection.cursor.execute('alter table master add column [Die(2)] INTEGER DEFAULT 0')
         self.connection.cursor.execute('alter table master add column [Die(1)] INTEGER DEFAULT 0')
 
@@ -196,7 +162,7 @@ class TestDiceTableInjector(unittest.TestCase):
         self.injector.add_table(dice_table)
 
         col_names = [info[1] for info in self.connection.get_table_data('master')]
-        self.assertEqual(col_names, ['id', 'bytes', 'dice_score', 'Die(2)'])
+        self.assertEqual(col_names, ['id', 'serialized', 'score', 'group', 'Die(2)'])
         self.assertEqual(self.connection.get_tables(), ['master', 'Die(2)'])
 
         self.assertEqual(self.injector.info.dice, ['Die(2)'])
@@ -209,7 +175,7 @@ class TestDiceTableInjector(unittest.TestCase):
         self.injector.add_table(dice_table)
         self.injector.add_table(other_table)
         col_names = [info[1] for info in self.connection.get_table_data('master')]
-        self.assertEqual(col_names, ['id', 'bytes', 'dice_score', 'Die(2)'])
+        self.assertEqual(col_names, ['id', 'serialized', 'score', 'group', 'Die(2)'])
         self.assertEqual(self.injector.info.dice, ['Die(2)'])
         self.assertEqual(self.injector.info.tables, ['master', 'Die(2)'])
 
@@ -221,7 +187,7 @@ class TestDiceTableInjector(unittest.TestCase):
 
         master_col_names = [info[1] for info in self.connection.get_table_data('master')]
         die_1_die_2_col_names = [info[1] for info in self.connection.get_table_data('Die(1)&Die(2)')]
-        self.assertEqual(master_col_names, ['id', 'bytes', 'dice_score', 'Die(2)', 'Die(1)'])
+        self.assertEqual(master_col_names, ['id', 'serialized', 'score', 'group', 'Die(2)', 'Die(1)'])
         self.assertEqual(die_1_die_2_col_names, ['id', 'Die(1)', 'Die(2)'])
 
         self.assertEqual(self.injector.info.dice, ['Die(2)', 'Die(1)'])
@@ -247,7 +213,7 @@ class TestDiceTableInjector(unittest.TestCase):
         self.injector.add_table(dice_table1)
         self.injector.add_table(dice_table2)
         data = self.connection.cursor.execute('select [id], [Die(1)], [Die(2)] from master').fetchall()
-        dice_tables = self.connection.cursor.execute('select [bytes] from master').fetchall()
+        dice_tables = self.connection.cursor.execute('select serialized from master').fetchall()
         self.assertEqual(data, [(0, 0, 2), (1, 1, 3), (2, 1, 2)])
         self.assertEqual(dice_table0.get_dict(), pickle.loads(dice_tables[0][0]).get_dict())
         self.assertEqual(dice_table1.get_dict(), pickle.loads(dice_tables[1][0]).get_dict())
