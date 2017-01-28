@@ -5,6 +5,11 @@ from pymongo.cursor import Cursor
 import mongo_dicetables.dbinterface as dbi
 
 
+"""
+HEY DUMMY!  DID YOU FORGET TO RUN "mongod" IN BASH? DON'T FORGET!
+"""
+
+
 class TestConnection(unittest.TestCase):
     connection = dbi.Connection('test_db', 'test_collection')
 

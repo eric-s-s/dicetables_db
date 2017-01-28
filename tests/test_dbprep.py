@@ -6,7 +6,7 @@ import mongo_dicetables.dbprep as prep
 
 
 class TestDBPrep(unittest.TestCase):
-    
+
     def test_get_score_empty(self):
         self.assertEqual(prep.get_score([]), 0)
 
@@ -74,33 +74,69 @@ class TestDBPrep(unittest.TestCase):
 
     def test_RetrieveDiceTable_init_creates_score(self):
         table_list = [(dt.Die(2), 2), (dt.Die(3), 1)]
-        retriever = prep.RetrieveDiceTable(table_list)
+        retriever = prep.SearchParams(table_list)
         self.assertEqual(retriever.get_score(), (4 + 3))
 
     def test_RetrieveDiceTable_init_disallows_empty_list(self):
-        self.assertRaises(ValueError, prep.RetrieveDiceTable, [])
+        self.assertRaises(ValueError, prep.SearchParams, [])
 
-    def test_RetrieveDiceTable_get_next_search_params(self):
+    def test_RetrieveDiceTable_get_search_params(self):
         table_list = [(dt.Die(1), 4), (dt.Die(2), 2), (dt.Die(3), 1)]
-        retriever = prep.RetrieveDiceTable(table_list)
-        self.assertEqual(next(retriever.search_params), [('Die(1)&Die(2)&Die(3)',
+        retriever = prep.SearchParams(table_list)
+        searcher = retriever.get_search_params()
+        self.assertEqual(next(searcher), [('Die(1)&Die(2)&Die(3)',
                                                           {'Die(1)': 4, 'Die(2)': 2, 'Die(3)': 1})])
-        self.assertEqual(next(retriever.search_params),
+        self.assertEqual(next(searcher),
                          [('Die(1)&Die(2)', {'Die(1)': 4, 'Die(2)': 2}),
                           ('Die(1)&Die(3)', {'Die(1)': 4, 'Die(3)': 1}),
                           ('Die(2)&Die(3)', {'Die(2)': 2, 'Die(3)': 1})]
                          )
-        self.assertEqual(next(retriever.search_params),
+        self.assertEqual(next(searcher),
                          [('Die(1)', {'Die(1)': 4}),
                           ('Die(2)', {'Die(2)': 2}),
                           ('Die(3)', {'Die(3)': 1})]
                          )
-        self.assertRaises(StopIteration, next, retriever.search_params)
+        self.assertRaises(StopIteration, next, searcher)
 
-    def test_RetrieveDiceTable_get_next_search_params_stop_iteration(self):
+    def test_RetrieveDiceTable_get_search_params_can_have_two_independent_generators(self):
         table_list = [(dt.Die(1), 4), (dt.Die(2), 2), (dt.Die(3), 1)]
-        retriever = prep.RetrieveDiceTable(table_list)
-        result = [lst for lst in retriever.search_params]
+        retriever = prep.SearchParams(table_list)
+        searcher = retriever.get_search_params()
+        other_searcher = retriever.get_search_params()
+        self.assertEqual(next(searcher), [('Die(1)&Die(2)&Die(3)',
+                                          {'Die(1)': 4, 'Die(2)': 2, 'Die(3)': 1})])
+
+        self.assertEqual(next(other_searcher), [('Die(1)&Die(2)&Die(3)',
+                                                 {'Die(1)': 4, 'Die(2)': 2, 'Die(3)': 1})])
+
+        self.assertEqual(next(searcher),
+                         [('Die(1)&Die(2)', {'Die(1)': 4, 'Die(2)': 2}),
+                          ('Die(1)&Die(3)', {'Die(1)': 4, 'Die(3)': 1}),
+                          ('Die(2)&Die(3)', {'Die(2)': 2, 'Die(3)': 1})]
+                         )
+        self.assertEqual(next(searcher),
+                         [('Die(1)', {'Die(1)': 4}),
+                          ('Die(2)', {'Die(2)': 2}),
+                          ('Die(3)', {'Die(3)': 1})]
+                         )
+        self.assertRaises(StopIteration, next, searcher)
+
+        self.assertEqual(next(other_searcher),
+                         [('Die(1)&Die(2)', {'Die(1)': 4, 'Die(2)': 2}),
+                          ('Die(1)&Die(3)', {'Die(1)': 4, 'Die(3)': 1}),
+                          ('Die(2)&Die(3)', {'Die(2)': 2, 'Die(3)': 1})]
+                         )
+        self.assertEqual(next(other_searcher),
+                         [('Die(1)', {'Die(1)': 4}),
+                          ('Die(2)', {'Die(2)': 2}),
+                          ('Die(3)', {'Die(3)': 1})]
+                         )
+        self.assertRaises(StopIteration, next, other_searcher)
+
+    def test_RetrieveDiceTable_get_search_params_stop_iteration(self):
+        table_list = [(dt.Die(1), 4), (dt.Die(2), 2), (dt.Die(3), 1)]
+        retriever = prep.SearchParams(table_list)
+        result = [lst for lst in retriever.get_search_params()]
         self.assertEqual(len(result), 3)
         self.assertEqual(result[0], [('Die(1)&Die(2)&Die(3)', {'Die(1)': 4, 'Die(2)': 2, 'Die(3)': 1})])
         self.assertEqual(result[1],
@@ -115,3 +151,5 @@ class TestDBPrep(unittest.TestCase):
                          )
 
 
+if __name__ == "__main__":
+    unittest.main()

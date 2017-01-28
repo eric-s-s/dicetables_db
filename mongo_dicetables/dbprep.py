@@ -33,13 +33,15 @@ class PrepDiceTable(object):
         return output
 
 
-class RetrieveDiceTable(object):
+class SearchParams(object):
     def __init__(self, dice_list):
         if not dice_list:
             raise ValueError('List may not be empty')
         self._score = get_score(dice_list)
         self._labels = get_label_list(dice_list)
-        self.search_params = self._search_generator()
+
+    def get_search_params(self):
+        return self._search_generator()
 
     def _search_generator(self):
         elements_in_group = len(self._labels)
@@ -55,10 +57,6 @@ class RetrieveDiceTable(object):
 
     def get_score(self):
         return self._score
-
-    @staticmethod
-    def deserialize(serialized_data):
-        return Serializer.deserialize(serialized_data)
 
 
 class Serializer(object):
