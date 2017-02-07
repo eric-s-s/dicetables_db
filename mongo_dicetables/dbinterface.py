@@ -8,6 +8,11 @@ class Connection(object):
         self._client = MongoClient(ip, port)
         self._db = self._client[db_name]
         self._collection = self._db[collection_name]
+        self._params_storage = (db_name, collection_name, ip, str(port))
+
+    @property
+    def connection_info(self):
+        return self._params_storage
 
     def collection_info(self):
         if not self.db_info():
@@ -62,6 +67,10 @@ class ConnectionCommandInterface(object):
         if not self.has_required_index():
             self._create_required_index()
 
+    @property
+    def connection_info(self):
+        return self._conn.connection_info
+
     def has_required_index(self):
         answer = self._conn.collection_info()
         return 'group_1_score_1' in answer.keys()
@@ -72,6 +81,10 @@ class ConnectionCommandInterface(object):
     def reset(self):
         self._conn.reset_collection()
         self._create_required_index()
+
+    def has_table(self, table):
+        finder = Finder(self._conn, table.get_list())
+        return bool(finder.get_exact_match())
 
     def add_table(self, table):
         adder = prep.PrepDiceTable(table)

@@ -19,6 +19,9 @@ class TestConnection(unittest.TestCase):
     def tearDown(self):
         pass
 
+    def test_connection_info(self):
+        self.assertEqual(self.connection.connection_info, ('test_db', 'test_collection', 'localhost', '27017'))
+
     def test_collection_info_empty(self):
         self.assertEqual(self.connection.collection_info(), {})
 

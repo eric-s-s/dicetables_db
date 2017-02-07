@@ -10,7 +10,7 @@ HEY DUMMY!  DID YOU FORGET TO RUN "mongod" IN BASH? DON'T FORGET!
 """
 
 
-class TestDiceTableInjector(unittest.TestCase):
+class TestDBInterface(unittest.TestCase):
     connection = dbi.Connection('test_db', 'test_collection')
     interface = dbi.ConnectionCommandInterface(connection)
 
@@ -19,6 +19,9 @@ class TestDiceTableInjector(unittest.TestCase):
 
     def tearDown(self):
         pass
+
+    def test_connection_info(self):
+        self.assertEqual(self.interface.connection_info, self.connection.connection_info)
 
     def test_init_creates_index(self):
         new_conn = dbi.Connection('another_test', 'another_collection')
@@ -39,6 +42,13 @@ class TestDiceTableInjector(unittest.TestCase):
         self.connection.reset_collection()
         self.interface.reset()
         self.assertTrue(self.interface.has_required_index())
+
+    def test_has_table_true(self):
+        self.interface.add_table(dt.DiceTable.new().add_die(dt.Die(3)))
+        self.assertTrue(self.interface.has_table(dt.DiceTable.new().add_die(dt.Die(3))))
+
+    def test_has_table_false(self):
+        self.assertFalse(self.interface.has_table(dt.DiceTable.new().add_die(dt.Die(3))))
 
     def test_add_table_return_string_of_id(self):
         id_str = self.interface.add_table(dt.DiceTable.new().add_die(dt.Die(1)))
