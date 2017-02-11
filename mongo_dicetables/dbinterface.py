@@ -1,64 +1,6 @@
-from pymongo import MongoClient, ASCENDING
-from bson.objectid import ObjectId
 import mongo_dicetables.dbprep as prep
+from mongo_dicetables.serializer import Serializer
 
-
-class Connection(object):
-    def __init__(self, db_name, collection_name, ip='localhost', port=27017):
-        self._client = MongoClient(ip, port)
-        self._db = self._client[db_name]
-        self._collection = self._db[collection_name]
-        self._params_storage = (db_name, collection_name, ip, str(port))
-
-    @property
-    def connection_info(self):
-        return self._params_storage
-
-    def collection_info(self):
-        if not self.db_info():
-            return {}
-        return self._collection.index_information()
-
-    def db_info(self):
-        return self._db.collection_names()
-
-    def client_info(self):
-        return self._client.database_names()
-
-    def reset_collection(self):
-        self._db.drop_collection(self._collection.name)
-
-    def reset_database(self):
-        self._client.drop_database(self._db.name)
-
-    def find(self, params_dict=None, restrictions=None):
-        """
-
-        :return: iterable of results
-        """
-        return self._collection.find(params_dict, restrictions)
-
-    def find_one(self, params_dict=None, restrictions=None):
-        return self._collection.find_one(params_dict, restrictions)
-
-    def insert(self, document):
-        """
-
-        :return: ObjectId
-        """
-        obj_id = self._collection.insert_one(document).inserted_id
-        return obj_id
-
-    def create_index_on_collection(self, name_order_pairs):
-        self._collection.create_index(name_order_pairs)
-
-
-def get_id_string(id_object):
-    return str(id_object)
-
-
-def get_id_object(id_string):
-    return ObjectId(id_string)
 
 
 class ConnectionCommandInterface(object):
@@ -104,7 +46,7 @@ class ConnectionCommandInterface(object):
     def get_table(self, id_str):
         obj_id = get_id_object(id_str)
         data = self._conn.find_one({'_id': obj_id}, {'_id': 0, 'serialized': 1})
-        return prep.Serializer.deserialize(data['serialized'])
+        return Serializer.deserialize(data['serialized'])
 
 
 class Finder(object):

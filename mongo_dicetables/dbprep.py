@@ -1,5 +1,6 @@
-import pickle
 from itertools import combinations
+
+from serializer import Serializer
 
 
 class PrepDiceTable(object):
@@ -57,16 +58,6 @@ class SearchParams(object):
 
     def get_score(self):
         return self._score
-
-
-class Serializer(object):
-    @staticmethod
-    def serialize(thing):
-        return pickle.dumps(thing)
-
-    @staticmethod
-    def deserialize(data):
-        return pickle.loads(data)
 
 
 def get_score(dice_list):
