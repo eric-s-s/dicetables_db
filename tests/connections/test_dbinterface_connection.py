@@ -1,3 +1,18 @@
+import unittest
+
+import tests.connections.test_baseconnection as tbc
+import mongo_dicetables.connections.mongodb_connection as mg
+
+
+class TestNew(tbc.TestBaseConnection):
+    connection = mg.Connection('test_db', 'test')
+
+    def new_connection(self, collection_name):
+        connection_class = self.connection.__class__
+        return connection_class('test_db', collection_name)
+
+
+
 # import unittest
 # from bson.objectid import ObjectId
 # from pymongo.cursor import Cursor

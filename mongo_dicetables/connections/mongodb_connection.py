@@ -15,6 +15,15 @@ class Connection(BaseConnection):
     def is_collection_empty(self):
         pass
 
+    def get_info(self):
+        info = {
+            'db': self._params_storage[0],
+            'collections': self._db.collection_names(),
+            'current_collection': self._params_storage[1],
+            'indices': [] #self._collection.index_information()
+        }
+        return info
+
     @property
     def connection_info(self):
         return self._params_storage
@@ -33,8 +42,8 @@ class Connection(BaseConnection):
     def reset_collection(self):
         self._db.drop_collection(self._collection.name)
 
-    def reset_database(self):
-        self._client.drop_database(self._db.name)
+    def drop_collection(self):
+        self.reset_collection()
 
     def find(self, params_dict=None, restrictions=None):
         """
@@ -54,8 +63,9 @@ class Connection(BaseConnection):
         obj_id = self._collection.insert_one(document).inserted_id
         return obj_id
 
-    def create_index_on_collection(self, name_order_pairs):
-        self._collection.create_index(name_order_pairs)
+    def create_index(self, column_tuple):
+        params = [(column_name, ASCENDING) for column_name in column_tuple]
+        self._collection.create_index(params)
 
     def has_index(self, columns_tuple):
         to_join = []
