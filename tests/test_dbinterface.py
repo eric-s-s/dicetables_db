@@ -11,7 +11,7 @@
 #
 #
 # class TestDBInterface(unittest.TestCase):
-#     connection = dbi.Connection('test_db', 'test_collection')
+#     connection = dbi.MongoDBConnection('test_db', 'test_collection')
 #     interface = dbi.ConnectionCommandInterface(connection)
 #
 #     def setUp(self):
@@ -24,7 +24,7 @@
 #         self.assertEqual(self.interface.connection_info, self.connection.connection_info)
 #
 #     def test_init_creates_index(self):
-#         new_conn = dbi.Connection('another_test', 'another_collection')
+#         new_conn = dbi.MongoDBConnection('another_test', 'another_collection')
 #         self.assertEqual(new_conn.collection_info(), {})
 #         dbi.ConnectionCommandInterface(new_conn)
 #         index_names = sorted(new_conn.collection_info().keys())

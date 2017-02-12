@@ -10,7 +10,7 @@ class TestNew(tbc.TestBaseConnection):
 #
 #
 # class TestConnection(unittest.TestCase):
-#     connection = interface.Connection(':memory:')
+#     connection = interface.MongoDBConnection(':memory:')
 #
 #     def setUp(self):
 #         self.connection.reset_table()
@@ -70,7 +70,7 @@ class TestNew(tbc.TestBaseConnection):
 #
 #
 # class TestDiceTableInjector(unittest.TestCase):
-#     connection = interface.Connection(':memory:')
+#     connection = interface.MongoDBConnection(':memory:')
 #
 #     def setUp(self):
 #         self.connection.reset_table()

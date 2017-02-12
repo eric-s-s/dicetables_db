@@ -5,13 +5,53 @@ import mongo_dicetables.connections.mongodb_connection as mg
 
 
 class TestNew(tbc.TestBaseConnection):
-    connection = mg.Connection('test_db', 'test')
+    connection = mg.MongoDBConnection('test_db', 'test')
 
     def new_connection(self, collection_name):
         connection_class = self.connection.__class__
         return connection_class('test_db', collection_name)
 
+    """
+    from "http://api.mongodb.com/python/current/tutorial.html"
+    'An important note about collections (and databases) in MongoDB is that they are created lazily - none of the above
+    commands have actually performed any operations on the MongoDB server. Collections and databases are created when
+    the first document is inserted into them.'
 
+    hence, an empty collection will not show up in get_info()
+    """
+    def test_get_info(self):
+        expected = {
+            'db': 'test_db',
+            'collections': [],
+            'current_collection': 'test',
+            'indices': []
+        }
+        self.assertEqual(self.connection.get_info(), expected)
+
+    def test_get_info_new_connection(self):
+        expected = {
+            'db': 'test_db',
+            'collections': ['bob'],
+            'current_collection': 'bob',
+            'indices': [('foo',), ('foo', 'bar')]
+        }
+        new_connection = self.new_connection('bob')
+        new_connection.create_index(('foo',))
+        new_connection.create_index(('foo', 'bar'))
+        self.assertEqual(new_connection.get_info(), expected)
+
+    def test_reset_collection_puts_collection_back_into_db_after_removal(self):
+        self.connection.drop_collection()
+        self.connection.reset_collection()
+        self.assertEqual(self.connection.get_info()['collections'], [])
+
+    def test_reset_collection_still_in_db(self):
+        self.connection.reset_collection()
+        self.assertEqual([], self.connection.get_info()['collections'])
+
+
+if __name__ == '__main__':
+    unittest.main()
 
 # import unittest
 # from bson.objectid import ObjectId
@@ -26,7 +66,7 @@ class TestNew(tbc.TestBaseConnection):
 #
 #
 # class TestConnection(unittest.TestCase):
-#     connection = dbi.Connection('test_db', 'test_collection')
+#     connection = dbi.MongoDBConnection('test_db', 'test_collection')
 #
 #     def setUp(self):
 #         self.connection.reset_database()
@@ -61,20 +101,20 @@ class TestNew(tbc.TestBaseConnection):
 #         self.assertEqual([], self.connection.db_info())
 #
 #     def test_db_info_non_empty_db(self):
-#         other_conn = dbi.Connection('test_db', 'other_collection')
+#         other_conn = dbi.MongoDBConnection('test_db', 'other_collection')
 #         other_conn.insert({'b': 2})
 #         self.connection.insert({'a': 1})
 #         self.assertEqual(['other_collection', 'test_collection'], self.connection.db_info())
 #
 #     def test_reset_db(self):
-#         other_conn = dbi.Connection('test_db', 'other_collection')
+#         other_conn = dbi.MongoDBConnection('test_db', 'other_collection')
 #         other_conn.insert({'b': 2})
 #         self.connection.insert({'a': 1})
 #         self.connection.reset_database()
 #         self.assertEqual([], self.connection.db_info())
 #
 #     def test_reset_collection(self):
-#         other_conn = dbi.Connection('test_db', 'other_collection')
+#         other_conn = dbi.MongoDBConnection('test_db', 'other_collection')
 #         other_conn.insert({'b': 2})
 #         self.connection.insert({'a': 1})
 #         self.connection.reset_collection()

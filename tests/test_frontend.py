@@ -40,7 +40,7 @@
 #
 #
 # class TestFrontEnd(unittest.TestCase):
-#     # connection = dbi.Connection('test_db', 'test_collection')
+#     # connection = dbi.MongoDBConnection('test_db', 'test_collection')
 #     # interface = dbi.ConnectionCommandInterface(connection)
 #
 #     def setUp(self):

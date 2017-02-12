@@ -21,7 +21,7 @@ class MockConnection(BaseConnection):
             'db': 'test_db',
             'collections': sorted(MOCK_DATABASE.keys()),
             'current_collection': self.collection_name,
-            'indices': self._index[:]
+            'indices': sorted(self._index)
         }
         return info
 
@@ -108,6 +108,7 @@ class MockObjId(object):
 
     def __ge__(self, other):
         return self.number >= other.number
+
 
 def get_new_document(document, restrictions):
     if restrictions:
@@ -355,6 +356,9 @@ class TestBaseConnection(unittest.TestCase):
         results = list(self.connection.find({'a': 1}, {'_id': 0, 'a': 1, 'c': 1}))
         expected = [{'a': 1, 'c': 1}] * 3
         self.assertEqual(results, expected)
+
+
+# todo create inequality tests and get_id test.  insert tests should be explicit about returning new ID
 
     def test_get_id_string(self):
         pass

@@ -5,55 +5,57 @@ from connections.baseconnection import BaseConnection
 from pymongo import MongoClient, ASCENDING
 
 
-class Connection(BaseConnection):
+class MongoDBConnection(BaseConnection):
     def __init__(self, db_name, collection_name, ip='localhost', port=27017):
         self._client = MongoClient(ip, port)
         self._db = self._client[db_name]
         self._collection = self._db[collection_name]
         self._params_storage = (db_name, collection_name, ip, str(port))
+        self._place_holder = None
 
     def is_collection_empty(self):
-        pass
+        print('check collection: ', self._collection.count())
+        print('check db: ', self._db.collection_names())
+        return not self._collection.count()
 
     def get_info(self):
+        indices = self._get_indices()
         info = {
             'db': self._params_storage[0],
             'collections': self._db.collection_names(),
             'current_collection': self._params_storage[1],
-            'indices': [] #self._collection.index_information()
+            'indices': indices
         }
         return info
 
-    @property
-    def connection_info(self):
-        return self._params_storage
-
-    def collection_info(self):
-        if not self.db_info():
-            return {}
-        return self._collection.index_information()
-
-    def db_info(self):
-        return self._db.collection_names()
-
-    def client_info(self):
-        return self._client.database_names()
+    def _get_indices(self):
+        out = []
+        if self._collection.name in self._db.collection_names():
+            index_info = self._collection.index_information()
+            use_keys = [key for key in self._collection.index_information() if key != '_id_']
+            for key in use_keys:
+                columns = [pair[0] for pair in index_info[key]['key']]
+                out.append(tuple(columns))
+                out.sort()
+        return out
 
     def reset_collection(self):
-        self._db.drop_collection(self._collection.name)
+        self.drop_collection()
 
     def drop_collection(self):
-        self.reset_collection()
+        self._db.drop_collection(self._collection.name)
 
     def find(self, params_dict=None, restrictions=None):
         """
 
         :return: iterable of results
         """
-        return self._collection.find(params_dict, restrictions)
+        result = self._collection.find(params_dict, restrictions)
+        return result
 
     def find_one(self, params_dict=None, restrictions=None):
-        return self._collection.find_one(params_dict, restrictions)
+        result = self._collection.find_one(params_dict, restrictions)
+        return result
 
     def insert(self, document):
         """
@@ -68,13 +70,8 @@ class Connection(BaseConnection):
         self._collection.create_index(params)
 
     def has_index(self, columns_tuple):
-        to_join = []
-        for column_name in columns_tuple:
-            to_join.append(column_name + '_1')
-        index_string = '_'.join(to_join)
-
-        answer = self.collection_info()
-        return index_string in answer.keys()
+        indices = self.get_info()['indices']
+        return columns_tuple in indices
 
     @staticmethod
     def get_id_string(id_object):
