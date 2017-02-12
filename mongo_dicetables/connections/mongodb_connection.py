@@ -14,8 +14,6 @@ class MongoDBConnection(BaseConnection):
         self._place_holder = None
 
     def is_collection_empty(self):
-        print('check collection: ', self._collection.count())
-        print('check db: ', self._db.collection_names())
         return not self._collection.count()
 
     def get_info(self):
@@ -45,17 +43,38 @@ class MongoDBConnection(BaseConnection):
     def drop_collection(self):
         self._db.drop_collection(self._collection.name)
 
-    def find(self, params_dict=None, restrictions=None):
+    def find(self, params_dict=None, projection=None):
         """
 
         :return: iterable of results
         """
-        result = self._collection.find(params_dict, restrictions)
+        self._raise_error_for_bad_projection(projection)
+        new_projection = self._make_consistent_projection_api(projection)
+        result = self._collection.find(params_dict, new_projection)
         return result
 
-    def find_one(self, params_dict=None, restrictions=None):
-        result = self._collection.find_one(params_dict, restrictions)
+    def find_one(self, params_dict=None, projection=None):
+        self._raise_error_for_bad_projection(projection)
+        new_projection = self._make_consistent_projection_api(projection)
+        result = self._collection.find_one(params_dict, new_projection)
         return result
+
+    @staticmethod
+    def _raise_error_for_bad_projection(projection):
+        if projection:
+            bool_values = [bool(value) for value in projection.values()]
+            if True in bool_values and False in bool_values:
+                raise ValueError('Projection cannot have a mix of inclusion and exclusion.')
+
+    @staticmethod
+    def _make_consistent_projection_api(projection):
+        if not projection:
+            return None
+        new_projection = projection.copy()
+        if 1 in new_projection.values():
+            if '_id' not in new_projection.keys():
+                new_projection['_id'] = 0
+        return new_projection
 
     def insert(self, document):
         """

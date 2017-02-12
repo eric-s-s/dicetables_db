@@ -1,6 +1,7 @@
 import unittest
 
 from mongo_dicetables.connections.baseconnection import BaseConnection
+from mongo_dicetables.serializer import Serializer
 
 MOCK_DATABASE = {}
 
@@ -38,20 +39,22 @@ class MockConnection(BaseConnection):
         global MOCK_DATABASE
         del MOCK_DATABASE[self.collection_name]
 
-    def find(self, params_dict=None, restrictions=None):
+    def find(self, params_dict=None, projection=None):
         out = []
         collection = MOCK_DATABASE[self.collection_name]
+        raise_error_for_bad_projection(projection)
         for document in collection:
             if fits_search(document, params_dict):
-                new = get_new_document(document, restrictions)
+                new = get_new_document(document, projection)
                 out.append(new)
         return out
 
-    def find_one(self, params_dict=None, restrictions=None):
+    def find_one(self, params_dict=None, projection=None):
         collection = MOCK_DATABASE[self.collection_name]
+        raise_error_for_bad_projection(projection)
         for document in collection:
             if fits_search(document, params_dict):
-                new = get_new_document(document, restrictions)
+                new = get_new_document(document, projection)
                 return new
         return None
 
@@ -84,6 +87,72 @@ class MockConnection(BaseConnection):
         return columns_tuple in self._index
 
 
+def raise_error_for_bad_projection(projection):
+    if projection:
+        bool_values = [bool(value) for value in projection.values()]
+        if True in bool_values and False in bool_values:
+            raise ValueError('Projection cannot have a mix of inclusion and exclusion.')
+
+
+def get_new_document(document, projection):
+    if projection:
+        if 1 in projection.values():
+            new = get_included(document, projection)
+        else:
+            new = remove_excluded(document, projection)
+    else:
+        new = document.copy()
+    return new
+
+
+def get_included(document, projection):
+    new = {}
+    for key, value in projection.items():
+        if value:
+            new[key] = document[key]
+    return new
+
+
+def remove_excluded(document, projection):
+    new = document.copy()
+    for key, value in projection.items():
+        if not value:
+            del new[key]
+    return new
+
+
+def fits_search(document, params_dict):
+    if not params_dict:
+        return True
+
+    should_add_bool = True
+    for key, value in params_dict.items():
+        if key not in document.keys():
+            return False
+        if not should_add_bool:
+            break
+
+        if isinstance(value, dict):
+            should_add_bool = is_inequality_true(document[key], value)
+        else:
+            should_add_bool = (document[key] == value)
+
+    return should_add_bool
+
+
+def is_inequality_true(value, inequality_dict):
+    inequality_str, limiter = list(inequality_dict.items())[0]
+    inequalities = {
+        '$lt': value.__lt__,
+        '$lte': value.__le__,
+        '$gt': value.__gt__,
+        '$gte': value.__ge__,
+        '$ne': value.__ne__
+    }
+    operator = inequalities[inequality_str]
+    return operator(limiter)
+
+
 class MockObjId(object):
     def __init__(self, number):
         self.number = number
@@ -108,49 +177,6 @@ class MockObjId(object):
 
     def __ge__(self, other):
         return self.number >= other.number
-
-
-def get_new_document(document, restrictions):
-    if restrictions:
-        new = {}
-        for key, value in restrictions.items():
-            if value:
-                new[key] = document[key]
-    else:
-        new = document.copy()
-    return new
-
-
-def fits_search(document, params_dict):
-    if not params_dict:
-        return True
-
-    should_add_bool = True
-    for key, value in params_dict.items():
-        if key not in document.keys():
-            return False
-        if not should_add_bool:
-            break
-
-        if isinstance(value, dict):
-            should_add_bool = is_inequality_true(document[key], value)
-        else:
-            should_add_bool = (document[key] == value)
-
-    return should_add_bool
-
-
-def is_inequality_true(value, inequality_dict):
-    inequality_str, limiter = list(inequality_dict.values())[0]
-    inequalities = {
-        '$lt': value.__lt__,
-        '$lte': value.__le__,
-        '$gt': value.__gt__,
-        '$gte': value.__ge__,
-        '$ne': value.__ne__
-    }
-    operator = inequalities[inequality_str]
-    return operator(limiter)
 
 
 class TestBaseConnection(unittest.TestCase):
@@ -266,6 +292,23 @@ class TestBaseConnection(unittest.TestCase):
         self.assertEqual(document, returned)
         self.assertIsNot(document, returned)
 
+    def test_insert_creates_unique_ids(self):
+        id_list = []
+        for _ in range(10):
+            obj_id = self.connection.insert({'a': 1})
+            self.assertNotIn(obj_id, id_list)
+            id_list.append(obj_id)
+
+    def test_insert_serialized_data(self):
+        original = 'a'
+        serialized = Serializer.serialize(original)
+        self.assertNotEqual(original, serialized)
+
+        obj_id = self.connection.insert({'a': serialized})
+        document = self.connection.find_one({'_id': obj_id})
+
+        self.assertEqual(Serializer.deserialize(document['a']), 'a')
+
     def test_insert_mutating_original_is_safe(self):
         document = {'a': 1, 'b': 2}
         obj_id = self.connection.insert(document)
@@ -281,8 +324,8 @@ class TestBaseConnection(unittest.TestCase):
     def test_find_one_has_params_empty_collection(self):
         self.assertIsNone(self.connection.find_one({'a': 1}))
 
-    def test_find_one_has_restrictions_empty_collection(self):
-        self.assertIsNone(self.connection.find_one(restrictions={'a': 1}))
+    def test_find_one_has_projection_empty_collection(self):
+        self.assertIsNone(self.connection.find_one(projection={'a': 1}))
 
     def test_find_one_no_params_non_empty_collection(self):
         document_list = self.populate_db()
@@ -318,7 +361,7 @@ class TestBaseConnection(unittest.TestCase):
         self.populate_db()
         self.assertIsNone(self.connection.find_one({'a': 1, 'd': 1}))
 
-    def test_find_one_restrictions(self):
+    def test_find_one_projection(self):
         obj_id = self.connection.insert({'a': 0, 'b': 0, 'c': 0})
         self.assertEqual(self.connection.find_one({'_id': obj_id}, {'_id': 1, 'b': 1}),
                          {'_id': obj_id, 'b': 0})
@@ -351,20 +394,44 @@ class TestBaseConnection(unittest.TestCase):
         for document in expected:
             self.assertIn(document, results)
 
-    def test_find_with_restrictions(self):
+    def test_find_with_projection_inclusion(self):
         self.populate_db()
-        results = list(self.connection.find({'a': 1}, {'_id': 0, 'a': 1, 'c': 1}))
+        results = list(self.connection.find({'a': 1}, {'a': 1, 'c': 1}))
         expected = [{'a': 1, 'c': 1}] * 3
         self.assertEqual(results, expected)
 
+    def test_find_with_projection_exclusion(self):
+        self.populate_db()
+        results = list(self.connection.find({'a': 1}, {'_id': 0, 'b': 0}))
+        expected = [{'a': 1, 'c': 1}] * 3
+        self.assertEqual(results, expected)
 
-# todo create inequality tests and get_id test.  insert tests should be explicit about returning new ID
+    def test_find_with_projection_raises_error_with_inclusion_and_exclusion(self):
+        self.assertRaises(ValueError, self.connection.find, {'a': 1}, {'a': 1, 'b': 0})
+        self.assertRaises(ValueError, self.connection.find_one, {'a': 1}, {'a': 1, 'b': 0})
+
+    def test_projection_id_is_not_special_case(self):
+        obj_id = self.connection.insert({'a': 1, 'b': 1})
+        just_a = self.connection.find_one(projection={'a': 1})
+        a_and_id = self.connection.find_one(projection={'a': 1, '_id': 1})
+        id_and_b = self.connection.find_one(projection={'a': 0})
+        self.assertEqual(just_a, {'a': 1})
+        self.assertEqual(a_and_id, {'_id': obj_id, 'a': 1})
+        self.assertEqual(id_and_b, {'_id': obj_id, 'b': 1})
 
     def test_get_id_string(self):
-        pass
+        id_obj = self.connection.insert({'a': 1})
+        id_str = self.connection.get_id_string(id_obj)
+        self.assertIsInstance(id_str, str)
 
     def test_get_id_object(self):
-        pass
+        id_obj = self.connection.insert({'a': 1})
+        id_str = self.connection.get_id_string(id_obj)
+        new_id_obj = self.connection.get_id_object(id_str)
+
+        self.assertIsNot(new_id_obj, id_obj)
+        self.assertIsInstance(new_id_obj, id_obj.__class__)
+        self.assertEqual(new_id_obj, id_obj)
 
     def test_has_index_true(self):
         self.connection.create_index(('a', 'b'))
@@ -377,9 +444,43 @@ class TestBaseConnection(unittest.TestCase):
     def test_has_index_false_no_indices(self):
         self.assertFalse(self.connection.has_index(('a', 'b')))
 
-    def test_create_index(self):
-        pass
+    def test_lt_syntax_with_find(self):
+        self.populate_db()
+        results = list(self.connection.find({'a': {'$lt': 1}}, {'a': 1, 'b': 1}))
+        expected = [{'a': 0, 'b': 0}] * 4
+        self.assertEqual(results, expected)
 
+    def test_lte_syntax_with_find(self):
+        self.populate_db()
+        results = list(self.connection.find({'a': {'$lte': 1}}, {'a': 1}))
+
+        results_zero = [element for element in results if element == {'a': 0}]
+        results_one = [element for element in results if element == {'a': 1}]
+        self.assertEqual(len(results_one), 3)
+        self.assertEqual(len(results_zero), 4)
+        self.assertEqual(len(results), 7)
+
+    def test_gt_syntax_with_find(self):
+        self.populate_db()
+        results = list(self.connection.find({'a': {'$gt': 1}}, {'a': 1}))
+        self.assertEqual(results, [{'a': 2}] * 3)
+
+    def test_gte_syntax_with_find(self):
+        self.populate_db()
+        results = list(self.connection.find({'a': {'$gte': 2}}, {'a': 1}))
+        self.assertEqual(results, [{'a': 2}] * 3)
+
+    def test_ne_syntax_with_find(self):
+        self.populate_db()
+        results = list(self.connection.find({'a': {'$ne': 1}}, {'a': 1}))
+
+        results_zero = [element for element in results if element == {'a': 0}]
+        results_two = [element for element in results if element == {'a': 2}]
+        self.assertEqual(len(results_two), 3)
+        self.assertEqual(len(results_zero), 4)
+        self.assertEqual(len(results), 7)
+
+    # todo create persistence tests
 
 if __name__ == '__main__':
     unittest.main()

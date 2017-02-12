@@ -1,9 +1,9 @@
 import sqlite3 as lite
 
 
-class Connection(object):
-    def __init__(self, path_name):
-        self._path = path_name
+class SQLConnection(object):
+    def __init__(self, db_path, table_name):
+        self._path = db_path
         self._connection = None
         self._cursor = None
         self.start_up()
