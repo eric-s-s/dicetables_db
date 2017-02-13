@@ -10,49 +10,60 @@ class MockConnection(BaseConnection):
     def __init__(self, collection_name):
         self.collection_name = collection_name
         self._insert_collection_into_db()
-        self._index = []
 
     def _insert_collection_into_db(self):
         global MOCK_DATABASE
         if self.collection_name not in MOCK_DATABASE:
-            MOCK_DATABASE[self.collection_name] = []
+            MOCK_DATABASE[self.collection_name] = {'docs': [], 'indices': []}
 
     def get_info(self):
         info = {
             'db': 'test_db',
             'collections': sorted(MOCK_DATABASE.keys()),
             'current_collection': self.collection_name,
-            'indices': sorted(self._index)
+            'indices': sorted(self._indices_pointer())
         }
         return info
 
+    def _documents_pointer(self):
+        return self._collection_pointer()['docs']
+
+    def _indices_pointer(self):
+        return self._collection_pointer()['indices']
+
+    def _collection_pointer(self):
+        if self.collection_name is None:
+            return None
+        global MOCK_DATABASE
+        return MOCK_DATABASE.get(self.collection_name, {'docs': [], 'indices': []})
+
     def is_collection_empty(self):
-        return not MOCK_DATABASE.get(self.collection_name, [])
+        return not self._documents_pointer()
 
     def reset_collection(self):
         global MOCK_DATABASE
-        MOCK_DATABASE[self.collection_name] = []
-        self._index = []
+        MOCK_DATABASE[self.collection_name] = {'docs': [], 'indices': []}
 
     def drop_collection(self):
         self.reset_collection()
         global MOCK_DATABASE
         del MOCK_DATABASE[self.collection_name]
 
+    def close(self):
+        self.collection_name = None
+
     def find(self, params_dict=None, projection=None):
         out = []
-        collection = MOCK_DATABASE[self.collection_name]
         raise_error_for_bad_projection(projection)
-        for document in collection:
+        for document in self._documents_pointer():
             if fits_search(document, params_dict):
                 new = get_new_document(document, projection)
                 out.append(new)
         return out
 
     def find_one(self, params_dict=None, projection=None):
-        collection = MOCK_DATABASE[self.collection_name]
         raise_error_for_bad_projection(projection)
-        for document in collection:
+        for document in self._documents_pointer():
             if fits_search(document, params_dict):
                 new = get_new_document(document, projection)
                 return new
@@ -61,15 +72,14 @@ class MockConnection(BaseConnection):
     def insert(self, document):
         new_id = self._get_next_id()
         document['_id'] = new_id
-        global MOCK_DATABASE
-        MOCK_DATABASE[self.collection_name].append(document.copy())
+        self._documents_pointer().append(document.copy())
         return new_id
 
     def _get_next_id(self):
-        collection = MOCK_DATABASE[self.collection_name]
-        if not collection:
+        documents = self._documents_pointer()
+        if not documents:
             return MockObjId(0)
-        highest_num = max([doc['_id'] for doc in collection]).number
+        highest_num = max([doc['_id'] for doc in documents]).number
         return MockObjId(highest_num + 1)
 
     @staticmethod
@@ -81,10 +91,10 @@ class MockConnection(BaseConnection):
         return MockObjId(int(id_string))
 
     def create_index(self, columns_tuple):
-        self._index.append(columns_tuple)
+        self._indices_pointer().append(columns_tuple)
 
     def has_index(self, columns_tuple):
-        return columns_tuple in self._index
+        return columns_tuple in self._indices_pointer()
 
 
 def raise_error_for_bad_projection(projection):
@@ -180,7 +190,7 @@ class MockObjId(object):
 
 
 class TestBaseConnection(unittest.TestCase):
-    connection = MockConnection('test')
+    connection_class = MockConnection
 
     def populate_db(self):
         out = []
@@ -200,7 +210,7 @@ class TestBaseConnection(unittest.TestCase):
         return out
 
     def new_connection(self, *params):
-        connection_class = self.connection.__class__
+        connection_class = self.connection_class
         return connection_class(*params)
 
     def empty_database(self):
@@ -210,8 +220,12 @@ class TestBaseConnection(unittest.TestCase):
             to_drop.drop_collection()
 
     def setUp(self):
+        self.connection = self.new_connection('test')
         self.empty_database()
         self.connection.reset_collection()
+
+    def tearDown(self):
+        self.connection.close()
 
     def test_get_info(self):
         expected = {
@@ -275,7 +289,8 @@ class TestBaseConnection(unittest.TestCase):
         self.connection.create_index(('foo',))
 
         self.connection.drop_collection()
-
+# todo: decide wtf this does.  is dropping different from resetting?  yes! it is removed from db,
+# todo: but connection is still there maybe it is now closed?
         self.assertTrue(self.connection.is_collection_empty())
         self.assertEqual(self.connection.get_info()['collections'], [])
         self.assertEqual(self.connection.get_info()['indices'], [])
@@ -284,6 +299,12 @@ class TestBaseConnection(unittest.TestCase):
         self.connection.drop_collection()
         self.connection.reset_collection()
         self.assertEqual(self.connection.get_info()['collections'], ['test'])
+
+    def test_close_connection_cannot_connect_anymore(self):
+        self.connection.close()
+        self.assertRaises(Exception, self.connection.find)
+        self.assertRaises(Exception, self.connection.find_one)
+        self.assertRaises(Exception, self.connection.insert, {'a': 1})
 
     def test_insert(self):
         document = {'a': 1, 'b': 2}
@@ -480,7 +501,16 @@ class TestBaseConnection(unittest.TestCase):
         self.assertEqual(len(results_zero), 4)
         self.assertEqual(len(results), 7)
 
-    # todo create persistence tests
+    def test_data_persistence(self):
+        connection_1 = self.new_connection('new_test')
+        id_obj = connection_1.insert({'a': 1})
+        connection_1.create_index(('a', ))
+        connection_1.close()
+
+        connection_2 = self.new_connection('new_test')
+        self.assertTrue(connection_2.has_index(('a', )))
+        self.assertEqual(connection_2.find_one(), {'_id': id_obj, 'a': 1})
+
 
 if __name__ == '__main__':
     unittest.main()

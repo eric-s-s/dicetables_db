@@ -4,13 +4,12 @@ import tests.connections.test_baseconnection as tbc
 from mongo_dicetables.connections.sql_connection import SQLConnection
 
 
-class TestNew(tbc.TestBaseConnection):
-    pass
-    # connection = SQLConnection(':memory:', 'test')
-    #
-    # def new_connection(self, collection_name):
-    #     connection_class = self.connection.__class__
-    #     return connection_class(':memory:', collection_name)
+# class TestNew(tbc.TestBaseConnection):
+#     connection = SQLConnection(':memory:', 'test')
+#
+#     def new_connection(self, collection_name):
+#         connection_class = self.connection.__class__
+#         return connection_class(':memory:', collection_name)
 
 
 #     value = 3

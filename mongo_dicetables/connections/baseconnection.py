@@ -40,6 +40,9 @@ class BaseConnection(object):
     def drop_collection(self):
         raise NotImplementedError
 
+    def close(self):
+        raise NotImplementedError
+
     @staticmethod
     def get_id_string(id_obj):
         raise NotImplementedError

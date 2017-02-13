@@ -19,9 +19,9 @@ class MongoDBConnection(BaseConnection):
     def get_info(self):
         indices = self._get_indices()
         info = {
-            'db': self._params_storage[0],
+            'db': self._db.name,
             'collections': self._db.collection_names(),
-            'current_collection': self._params_storage[1],
+            'current_collection': self._collection.name,
             'indices': indices
         }
         return info
@@ -42,6 +42,13 @@ class MongoDBConnection(BaseConnection):
 
     def drop_collection(self):
         self._db.drop_collection(self._collection.name)
+
+    def close(self):
+        if self._client:
+            self._client.close()
+        self._client = None
+        self._collection = None
+        self._db = None
 
     def find(self, params_dict=None, projection=None):
         """
