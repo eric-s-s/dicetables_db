@@ -88,7 +88,8 @@ class MongoDBConnection(BaseConnection):
 
         :return: ObjectId
         """
-        obj_id = self._collection.insert_one(document).inserted_id
+        to_insert = document.copy()
+        obj_id = self._collection.insert_one(to_insert).inserted_id
         return obj_id
 
     def create_index(self, column_tuple):

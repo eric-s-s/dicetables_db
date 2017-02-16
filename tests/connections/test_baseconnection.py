@@ -71,8 +71,9 @@ class MockConnection(BaseConnection):
 
     def insert(self, document):
         new_id = self._get_next_id()
-        document['_id'] = new_id
-        self._documents_pointer().append(document.copy())
+        to_insert = document.copy()
+        to_insert['_id'] = new_id
+        self._documents_pointer().append(to_insert)
         return new_id
 
     def _get_next_id(self):
@@ -227,7 +228,7 @@ class TestBaseConnection(unittest.TestCase):
     def tearDown(self):
         self.connection.close()
 
-    def test_get_info(self):
+    def test_1_get_info(self):
         expected = {
             'db': 'test_db',
             'collections': ['test'],
@@ -236,7 +237,7 @@ class TestBaseConnection(unittest.TestCase):
         }
         self.assertEqual(self.connection.get_info(), expected)
 
-    def test_get_info_new_connection(self):
+    def test_2_get_info_new_connection(self):
         expected = {
             'db': 'test_db',
             'collections': ['bob', 'test'],
@@ -248,18 +249,18 @@ class TestBaseConnection(unittest.TestCase):
         new_connection.create_index(('foo', 'bar'))
         self.assertEqual(new_connection.get_info(), expected)
 
-    def test_is_collection_empty_true(self):
+    def test_3_is_collection_empty_true(self):
         self.assertTrue(self.connection.is_collection_empty())
 
-    def test_is_collection_empty_false(self):
+    def test_4_is_collection_empty_false(self):
         self.populate_db()
         self.assertFalse(self.connection.is_collection_empty())
 
-    def test_reset_collection_still_in_db(self):
+    def test_5_reset_collection_still_in_db(self):
         self.connection.reset_collection()
         self.assertEqual(['test'], self.connection.get_info()['collections'])
 
-    def test_reset_collection_removes_contents_and_indices(self):
+    def test_6_reset_collection_removes_contents_and_indices(self):
         self.populate_db()
         self.connection.create_index(('foo', ))
 
@@ -271,7 +272,7 @@ class TestBaseConnection(unittest.TestCase):
         self.assertTrue(self.connection.is_collection_empty())
         self.assertFalse(self.connection.get_info()['indices'])
 
-    def test_reset_collection_multiple_collections_only_empties_requested(self):
+    def test_7_reset_collection_multiple_collections_only_empties_requested(self):
         document = {'a': 1}
         new_connection = self.new_connection('bob')
         self.connection.insert(document)
@@ -284,7 +285,7 @@ class TestBaseConnection(unittest.TestCase):
         self.assertTrue(self.connection.is_collection_empty())
         self.assertFalse(new_connection.is_collection_empty())
 
-    def test_drop_collection_resets_and_removes_from_db(self):
+    def test_8_drop_collection_resets_and_removes_from_db(self):
         self.populate_db()
         self.connection.create_index(('foo',))
 
@@ -295,32 +296,39 @@ class TestBaseConnection(unittest.TestCase):
         self.assertEqual(self.connection.get_info()['collections'], [])
         self.assertEqual(self.connection.get_info()['indices'], [])
 
-    def test_reset_collection_puts_collection_back_into_db_after_removal(self):
+    def test_9_reset_collection_puts_collection_back_into_db_after_removal(self):
         self.connection.drop_collection()
         self.connection.reset_collection()
         self.assertEqual(self.connection.get_info()['collections'], ['test'])
 
-    def test_close_connection_cannot_connect_anymore(self):
+    def test_10_close_connection_cannot_connect_anymore(self):
         self.connection.close()
         self.assertRaises(Exception, self.connection.find)
         self.assertRaises(Exception, self.connection.find_one)
         self.assertRaises(Exception, self.connection.insert, {'a': 1})
 
-    def test_insert(self):
-        document = {'a': 1, 'b': 2}
-        self.connection.insert(document)
-        returned = self.connection.find_one()
-        self.assertEqual(document, returned)
-        self.assertIsNot(document, returned)
+    def test_11_insert(self):
+        original = {'a': 1, 'b': 2}
+        id_obj = self.connection.insert(original)
+        original['_id'] = id_obj
+        original_plus_id = self.connection.find_one()
+        self.assertEqual(original, original_plus_id)
+        self.assertIsNot(original, original_plus_id)
 
-    def test_insert_creates_unique_ids(self):
+    def test_12_insert_does_not_mutate_original(self):
+        original = {'a': 1, 'b': 2}
+        self.connection.insert(original)
+        original_plus_id = self.connection.find_one()
+        self.assertNotEqual(original, original_plus_id)
+
+    def test_13_insert_creates_unique_ids(self):
         id_list = []
         for _ in range(10):
             obj_id = self.connection.insert({'a': 1})
             self.assertNotIn(obj_id, id_list)
             id_list.append(obj_id)
 
-    def test_insert_serialized_data(self):
+    def test_14_insert_serialized_data(self):
         original = 'a'
         serialized = Serializer.serialize(original)
         self.assertNotEqual(original, serialized)
@@ -330,7 +338,7 @@ class TestBaseConnection(unittest.TestCase):
 
         self.assertEqual(Serializer.deserialize(document['a']), 'a')
 
-    def test_insert_mutating_original_is_safe(self):
+    def test_15_insert_mutating_original_is_safe(self):
         document = {'a': 1, 'b': 2}
         obj_id = self.connection.insert(document)
         document['a'] = 100
@@ -339,22 +347,23 @@ class TestBaseConnection(unittest.TestCase):
 
         self.assertEqual(expected, self.connection.find_one())
 
-    def test_find_one_no_params_empty_collection(self):
+    def test_16_find_one_no_params_empty_collection(self):
         self.assertIsNone(self.connection.find_one())
 
-    def test_find_one_has_params_empty_collection(self):
+    def test_17_find_one_has_params_empty_collection(self):
+        # print('test 16 ', self.connection._in_memory.columns)
         self.assertIsNone(self.connection.find_one({'a': 1}))
 
-    def test_find_one_has_projection_empty_collection(self):
+    def test_18_find_one_has_projection_empty_collection(self):
         self.assertIsNone(self.connection.find_one(projection={'a': 1}))
 
-    def test_find_one_no_params_non_empty_collection(self):
+    def test_19_find_one_no_params_non_empty_collection(self):
         document_list = self.populate_db()
         result = self.connection.find_one()
 
         self.assertIn(result, document_list)
 
-    def test_find_one_has_params_non_empty_collection(self):
+    def test_20_find_one_has_params_non_empty_collection(self):
         target_id = self.connection.insert({'a': 0, 'b': 0, 'c': 0})
         expected = {'_id': target_id, 'a': 0, 'b': 0, 'c': 0}
 
@@ -364,7 +373,7 @@ class TestBaseConnection(unittest.TestCase):
         self.assertEqual(self.connection.find_one({'_id': target_id}), expected)
         self.assertEqual(self.connection.find_one({'_id': target_id, 'a': 0, 'b': 0}), expected)
 
-    def test_find_one_has_params_many_possible_answers(self):
+    def test_21_find_one_has_params_many_possible_answers(self):
         all_docs = self.populate_db()
         expected_list = []
         for doc in all_docs:
@@ -374,36 +383,36 @@ class TestBaseConnection(unittest.TestCase):
         self.assertIn(self.connection.find_one({'a': 1}), expected_list)
         self.assertIn(self.connection.find_one({'a': 1, 'b': 1}), expected_list)
 
-    def test_find_one_no_match_by_value(self):
+    def test_22_find_one_no_match_by_value(self):
         self.populate_db()
         self.assertIsNone(self.connection.find_one({'a': 1, 'b': 2}))
 
-    def test_find_one_no_match_by_key(self):
+    def test_23_find_one_no_match_by_key(self):
         self.populate_db()
         self.assertIsNone(self.connection.find_one({'a': 1, 'd': 1}))
 
-    def test_find_one_projection(self):
+    def test_24_find_one_projection(self):
         obj_id = self.connection.insert({'a': 0, 'b': 0, 'c': 0})
         self.assertEqual(self.connection.find_one({'_id': obj_id}, {'_id': 1, 'b': 1}),
                          {'_id': obj_id, 'b': 0})
 
-    def test_find_no_params_empty_connection(self):
+    def test_25_find_no_params_empty_connection(self):
         results = list(self.connection.find())
         self.assertEqual([], results)
 
-    def test_find_no_matches(self):
+    def test_26_find_no_matches(self):
         self.populate_db()
         result = list(self.connection.find({'a': 1, 'b': 2}))
         self.assertEqual(result, [])
 
-    def test_find_no_params(self):
+    def test_27_find_no_params(self):
         docs = self.populate_db()
         results = list(self.connection.find())
         self.assertEqual(len(docs), len(results))
         for document in docs:
             self.assertIn(document, results)
 
-    def test_find_with_params(self):
+    def test_28_find_with_params(self):
         docs = self.populate_db()
         expected = []
         for document in docs:
@@ -415,23 +424,23 @@ class TestBaseConnection(unittest.TestCase):
         for document in expected:
             self.assertIn(document, results)
 
-    def test_find_with_projection_inclusion(self):
+    def test_29_find_with_projection_inclusion(self):
         self.populate_db()
         results = list(self.connection.find({'a': 1}, {'a': 1, 'c': 1}))
         expected = [{'a': 1, 'c': 1}] * 3
         self.assertEqual(results, expected)
 
-    def test_find_with_projection_exclusion(self):
+    def test_30_find_with_projection_exclusion(self):
         self.populate_db()
         results = list(self.connection.find({'a': 1}, {'_id': 0, 'b': 0}))
         expected = [{'a': 1, 'c': 1}] * 3
         self.assertEqual(results, expected)
 
-    def test_find_with_projection_raises_error_with_inclusion_and_exclusion(self):
+    def test_31_find_with_projection_raises_error_with_inclusion_and_exclusion(self):
         self.assertRaises(ValueError, self.connection.find, {'a': 1}, {'a': 1, 'b': 0})
         self.assertRaises(ValueError, self.connection.find_one, {'a': 1}, {'a': 1, 'b': 0})
 
-    def test_projection_id_is_not_special_case(self):
+    def test_32_projection_id_is_not_special_case(self):
         obj_id = self.connection.insert({'a': 1, 'b': 1})
         just_a = self.connection.find_one(projection={'a': 1})
         a_and_id = self.connection.find_one(projection={'a': 1, '_id': 1})
@@ -440,12 +449,12 @@ class TestBaseConnection(unittest.TestCase):
         self.assertEqual(a_and_id, {'_id': obj_id, 'a': 1})
         self.assertEqual(id_and_b, {'_id': obj_id, 'b': 1})
 
-    def test_get_id_string(self):
+    def test_33_get_id_string(self):
         id_obj = self.connection.insert({'a': 1})
         id_str = self.connection.get_id_string(id_obj)
         self.assertIsInstance(id_str, str)
 
-    def test_get_id_object(self):
+    def test_34_get_id_object(self):
         id_obj = self.connection.insert({'a': 1})
         id_str = self.connection.get_id_string(id_obj)
         new_id_obj = self.connection.get_id_object(id_str)
@@ -454,24 +463,24 @@ class TestBaseConnection(unittest.TestCase):
         self.assertIsInstance(new_id_obj, id_obj.__class__)
         self.assertEqual(new_id_obj, id_obj)
 
-    def test_has_index_true(self):
+    def test_35_has_index_true(self):
         self.connection.create_index(('a', 'b'))
         self.assertTrue(self.connection.has_index(('a', 'b')))
 
-    def test_has_index_false_wrong_index(self):
+    def test_36_has_index_false_wrong_index(self):
         self.connection.create_index(('a', 'b'))
         self.assertFalse(self.connection.has_index(('a',)))
 
-    def test_has_index_false_no_indices(self):
+    def test_37_has_index_false_no_indices(self):
         self.assertFalse(self.connection.has_index(('a', 'b')))
 
-    def test_lt_syntax_with_find(self):
+    def test_38_lt_syntax_with_find(self):
         self.populate_db()
         results = list(self.connection.find({'a': {'$lt': 1}}, {'a': 1, 'b': 1}))
         expected = [{'a': 0, 'b': 0}] * 4
         self.assertEqual(results, expected)
 
-    def test_lte_syntax_with_find(self):
+    def test_39_lte_syntax_with_find(self):
         self.populate_db()
         results = list(self.connection.find({'a': {'$lte': 1}}, {'a': 1}))
 
@@ -481,17 +490,17 @@ class TestBaseConnection(unittest.TestCase):
         self.assertEqual(len(results_zero), 4)
         self.assertEqual(len(results), 7)
 
-    def test_gt_syntax_with_find(self):
+    def test_40_gt_syntax_with_find(self):
         self.populate_db()
         results = list(self.connection.find({'a': {'$gt': 1}}, {'a': 1}))
         self.assertEqual(results, [{'a': 2}] * 3)
 
-    def test_gte_syntax_with_find(self):
+    def test_41_gte_syntax_with_find(self):
         self.populate_db()
         results = list(self.connection.find({'a': {'$gte': 2}}, {'a': 1}))
         self.assertEqual(results, [{'a': 2}] * 3)
 
-    def test_ne_syntax_with_find(self):
+    def test_42_ne_syntax_with_find(self):
         self.populate_db()
         results = list(self.connection.find({'a': {'$ne': 1}}, {'a': 1}))
 
@@ -501,7 +510,7 @@ class TestBaseConnection(unittest.TestCase):
         self.assertEqual(len(results_zero), 4)
         self.assertEqual(len(results), 7)
 
-    def test_data_persistence(self):
+    def test_43_data_persistence(self):
         connection_1 = self.new_connection('new_test')
         id_obj = connection_1.insert({'a': 1})
         connection_1.create_index(('a', ))
