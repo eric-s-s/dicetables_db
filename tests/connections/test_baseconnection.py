@@ -119,7 +119,7 @@ def get_new_document(document, projection):
 def get_included(document, projection):
     new = {}
     for key, value in projection.items():
-        if value:
+        if key in document and value:
             new[key] = document[key]
     return new
 
@@ -351,7 +351,6 @@ class TestBaseConnection(unittest.TestCase):
         self.assertIsNone(self.connection.find_one())
 
     def test_17_find_one_has_params_empty_collection(self):
-        # print('test 16 ', self.connection._in_memory.columns)
         self.assertIsNone(self.connection.find_one({'a': 1}))
 
     def test_18_find_one_has_projection_empty_collection(self):
@@ -391,28 +390,41 @@ class TestBaseConnection(unittest.TestCase):
         self.populate_db()
         self.assertIsNone(self.connection.find_one({'a': 1, 'd': 1}))
 
-    def test_24_find_one_projection(self):
+    def test_24_find_one_inclusion_out_of_range(self):
+        self.populate_db()
+        self.assertEqual({'a': 0}, self.connection.find_one({'b': 0}, {'a': 1, 'x': 1}))
+
+    def test_25_find_one_projection(self):
         obj_id = self.connection.insert({'a': 0, 'b': 0, 'c': 0})
         self.assertEqual(self.connection.find_one({'_id': obj_id}, {'_id': 1, 'b': 1}),
                          {'_id': obj_id, 'b': 0})
 
-    def test_25_find_no_params_empty_connection(self):
+    def test_26_find_no_params_empty_connection(self):
         results = list(self.connection.find())
         self.assertEqual([], results)
 
-    def test_26_find_no_matches(self):
+    def test_27_find_no_matches_by_value(self):
         self.populate_db()
         result = list(self.connection.find({'a': 1, 'b': 2}))
         self.assertEqual(result, [])
 
-    def test_27_find_no_params(self):
+    def test_28_find_no_match_by_key(self):
+        self.populate_db()
+        self.assertEqual([], list(self.connection.find({'a': 1, 'd': 1})))
+
+    def test_29_find_inclusion_out_of_range(self):
+        self.populate_db()
+        expected = [{'a': 0}, {'a': 0}, {'a': 0}, {'a': 0}]
+        self.assertEqual(expected, list(self.connection.find({'b': 0}, {'a': 1, 'x': 1})))
+
+    def test_30_find_no_params(self):
         docs = self.populate_db()
         results = list(self.connection.find())
         self.assertEqual(len(docs), len(results))
         for document in docs:
             self.assertIn(document, results)
 
-    def test_28_find_with_params(self):
+    def test_31_find_with_params(self):
         docs = self.populate_db()
         expected = []
         for document in docs:
@@ -424,23 +436,23 @@ class TestBaseConnection(unittest.TestCase):
         for document in expected:
             self.assertIn(document, results)
 
-    def test_29_find_with_projection_inclusion(self):
+    def test_32_find_with_projection_inclusion(self):
         self.populate_db()
         results = list(self.connection.find({'a': 1}, {'a': 1, 'c': 1}))
         expected = [{'a': 1, 'c': 1}] * 3
         self.assertEqual(results, expected)
 
-    def test_30_find_with_projection_exclusion(self):
+    def test_33_find_with_projection_exclusion(self):
         self.populate_db()
         results = list(self.connection.find({'a': 1}, {'_id': 0, 'b': 0}))
         expected = [{'a': 1, 'c': 1}] * 3
         self.assertEqual(results, expected)
 
-    def test_31_find_with_projection_raises_error_with_inclusion_and_exclusion(self):
+    def test_34_find_with_projection_raises_error_with_inclusion_and_exclusion(self):
         self.assertRaises(ValueError, self.connection.find, {'a': 1}, {'a': 1, 'b': 0})
         self.assertRaises(ValueError, self.connection.find_one, {'a': 1}, {'a': 1, 'b': 0})
 
-    def test_32_projection_id_is_not_special_case(self):
+    def test_35_projection_id_is_not_special_case(self):
         obj_id = self.connection.insert({'a': 1, 'b': 1})
         just_a = self.connection.find_one(projection={'a': 1})
         a_and_id = self.connection.find_one(projection={'a': 1, '_id': 1})
@@ -449,12 +461,12 @@ class TestBaseConnection(unittest.TestCase):
         self.assertEqual(a_and_id, {'_id': obj_id, 'a': 1})
         self.assertEqual(id_and_b, {'_id': obj_id, 'b': 1})
 
-    def test_33_get_id_string(self):
+    def test_36_get_id_string(self):
         id_obj = self.connection.insert({'a': 1})
         id_str = self.connection.get_id_string(id_obj)
         self.assertIsInstance(id_str, str)
 
-    def test_34_get_id_object(self):
+    def test_37_get_id_object(self):
         id_obj = self.connection.insert({'a': 1})
         id_str = self.connection.get_id_string(id_obj)
         new_id_obj = self.connection.get_id_object(id_str)
@@ -463,24 +475,24 @@ class TestBaseConnection(unittest.TestCase):
         self.assertIsInstance(new_id_obj, id_obj.__class__)
         self.assertEqual(new_id_obj, id_obj)
 
-    def test_35_has_index_true(self):
+    def test_38_has_index_true(self):
         self.connection.create_index(('a', 'b'))
         self.assertTrue(self.connection.has_index(('a', 'b')))
 
-    def test_36_has_index_false_wrong_index(self):
+    def test_39_has_index_false_wrong_index(self):
         self.connection.create_index(('a', 'b'))
         self.assertFalse(self.connection.has_index(('a',)))
 
-    def test_37_has_index_false_no_indices(self):
+    def test_40_has_index_false_no_indices(self):
         self.assertFalse(self.connection.has_index(('a', 'b')))
 
-    def test_38_lt_syntax_with_find(self):
+    def test_41_lt_syntax_with_find(self):
         self.populate_db()
         results = list(self.connection.find({'a': {'$lt': 1}}, {'a': 1, 'b': 1}))
         expected = [{'a': 0, 'b': 0}] * 4
         self.assertEqual(results, expected)
 
-    def test_39_lte_syntax_with_find(self):
+    def test_42_lte_syntax_with_find(self):
         self.populate_db()
         results = list(self.connection.find({'a': {'$lte': 1}}, {'a': 1}))
 
@@ -490,17 +502,17 @@ class TestBaseConnection(unittest.TestCase):
         self.assertEqual(len(results_zero), 4)
         self.assertEqual(len(results), 7)
 
-    def test_40_gt_syntax_with_find(self):
+    def test_43_gt_syntax_with_find(self):
         self.populate_db()
         results = list(self.connection.find({'a': {'$gt': 1}}, {'a': 1}))
         self.assertEqual(results, [{'a': 2}] * 3)
 
-    def test_41_gte_syntax_with_find(self):
+    def test_44_gte_syntax_with_find(self):
         self.populate_db()
         results = list(self.connection.find({'a': {'$gte': 2}}, {'a': 1}))
         self.assertEqual(results, [{'a': 2}] * 3)
 
-    def test_42_ne_syntax_with_find(self):
+    def test_45_ne_syntax_with_find(self):
         self.populate_db()
         results = list(self.connection.find({'a': {'$ne': 1}}, {'a': 1}))
 
@@ -510,7 +522,7 @@ class TestBaseConnection(unittest.TestCase):
         self.assertEqual(len(results_zero), 4)
         self.assertEqual(len(results), 7)
 
-    def test_43_data_persistence(self):
+    def test_46_data_persistence(self):
         connection_1 = self.new_connection('new_test')
         id_obj = connection_1.insert({'a': 1})
         connection_1.create_index(('a', ))

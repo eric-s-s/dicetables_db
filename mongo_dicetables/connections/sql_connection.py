@@ -2,6 +2,8 @@ import sqlite3 as lite
 from mongo_dicetables.connections.baseconnection import BaseConnection
 
 
+# todo OMFG REFACTOR
+
 class NonExistentColumnError(ValueError):
     pass
 
@@ -100,8 +102,7 @@ class SQLConnection(BaseConnection):
         return 'exclude'
 
     def _get_list_from_included(self, projection):
-        self._raise_column_error(projection)
-        return [col for col in projection]
+        return [col for col in projection if self._in_memory.has_column(col)]
 
     def _get_list_from_excluded(self, projection):
         all_cols = self._in_memory.columns
@@ -209,7 +210,8 @@ class SQLConnection(BaseConnection):
         return int(id_string)
 
     def create_index(self, columns_tuple):
-        values = ', '.join(columns_tuple)
+        safe_col_names = ['[{}]'.format(col_name) for col_name in columns_tuple]
+        values = ', '.join(safe_col_names)
         name = '&'.join(columns_tuple)
         command = "create index [{}] on [{}] ({})".format(name, self._collection, values)
         self._update_columns(dict.fromkeys(columns_tuple, (1, )))

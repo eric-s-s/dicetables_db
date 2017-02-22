@@ -2,7 +2,6 @@ import mongo_dicetables.dbprep as prep
 from mongo_dicetables.serializer import Serializer
 
 
-
 class ConnectionCommandInterface(object):
     def __init__(self, connection):
         self._conn = connection
@@ -11,14 +10,13 @@ class ConnectionCommandInterface(object):
 
     @property
     def connection_info(self):
-        return self._conn.connection_info
+        return self._conn.get_info()
 
     def has_required_index(self):
-        answer = self._conn.collection_info()
-        return 'group_1_score_1' in answer.keys()
+        return self._conn.has_index(('group', 'score'))
 
     def _create_required_index(self):
-        self._conn.create_index_on_collection([('group', ASCENDING), ('score', ASCENDING)])
+        self._conn.create_index(('group', 'score'))
 
     def reset(self):
         self._conn.reset_collection()
@@ -26,12 +24,12 @@ class ConnectionCommandInterface(object):
 
     def has_table(self, table):
         finder = Finder(self._conn, table.get_list())
-        return bool(finder.get_exact_match())
+        return finder.get_exact_match() is not None
 
     def add_table(self, table):
         adder = prep.PrepDiceTable(table)
         obj_id = self._conn.insert(adder.get_dict())
-        return get_id_string(obj_id)
+        return self._conn.get_id_string(obj_id)
 
     def find_nearest_table(self, dice_list):
         finder = Finder(self._conn, dice_list)
@@ -41,11 +39,11 @@ class ConnectionCommandInterface(object):
 
         if not obj_id:
             return None
-        return get_id_string(obj_id)
+        return self._conn.get_id_string(obj_id)
 
     def get_table(self, id_str):
-        obj_id = get_id_object(id_str)
-        data = self._conn.find_one({'_id': obj_id}, {'_id': 0, 'serialized': 1})
+        obj_id = self._conn.get_id_object(id_str)
+        data = self._conn.find_one({'_id': obj_id}, {'serialized': 1})
         return Serializer.deserialize(data['serialized'])
 
 
