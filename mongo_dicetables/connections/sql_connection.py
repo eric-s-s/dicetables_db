@@ -1,6 +1,7 @@
 import sqlite3 as lite
+from bson.objectid import ObjectId
 from mongo_dicetables.connections.baseconnection import BaseConnection
-
+from mongo_dicetables.serializer import Serializer
 
 # todo OMFG REFACTOR
 
@@ -11,7 +12,11 @@ class NonExistentColumnError(ValueError):
 class SQLConnection(BaseConnection):
     def __init__(self, db_path, table_name):
         self._path = db_path
-        self._connection = lite.connect(self._path)
+
+        self._connection = lite.connect(self._path, detect_types=lite.PARSE_DECLTYPES)
+        lite.register_converter('ObjectId', Serializer.deserialize)
+        lite.register_adapter(ObjectId, Serializer.serialize)
+
         self._cursor = self._connection.cursor()
         self._collection = table_name
         if self._no_such_collection():
@@ -23,7 +28,7 @@ class SQLConnection(BaseConnection):
         return not self._cursor.execute(command).fetchall()
 
     def _set_up(self):
-        command = "CREATE TABLE [{}] (_id INTEGER, PRIMARY KEY(_id))".format(self._collection)
+        command = "CREATE TABLE [{}] (_id ObjectId, PRIMARY KEY(_id))".format(self._collection)
         self._cursor.execute(command)
 
     def get_info(self):
@@ -83,10 +88,7 @@ class SQLConnection(BaseConnection):
         if projection_type == 'error':
             raise ValueError('Projection cannot have a mix of inclusion and exclusion.')
         elif projection_type == 'include':
-            try:
-                to_include = self._get_list_from_included(projection)
-            except NonExistentColumnError:
-                to_include = []
+            to_include = self._get_list_from_included(projection)
         else:
             to_include = self._get_list_from_excluded(projection)
         return to_include
@@ -139,7 +141,7 @@ class SQLConnection(BaseConnection):
             raise NonExistentColumnError
 
     def insert(self, document):
-        id_to_return = self._in_memory.get_new_id()
+        id_to_return = ObjectId()
         self._update_columns(document)
         values_str = '?, '
         values = [id_to_return]
@@ -201,14 +203,6 @@ class SQLConnection(BaseConnection):
         self._connection = None
         self._cursor = None
 
-    @staticmethod
-    def get_id_string(id_obj):
-        return str(id_obj)
-
-    @staticmethod
-    def get_id_object(id_string):
-        return int(id_string)
-
     def create_index(self, columns_tuple):
         safe_col_names = ['[{}]'.format(col_name) for col_name in columns_tuple]
         values = ', '.join(safe_col_names)
@@ -228,7 +222,6 @@ class InMemoryInformation(object):
         self._collection = collection_name
         self._tables = None
         self._col_names = None
-        self._id_generator = None
         self._indices = None
         self.refresh_information()
 
@@ -236,7 +229,6 @@ class InMemoryInformation(object):
         self.refresh_tables()
         self.refresh_columns()
         self.refresh_indices()
-        self._id_generator = self._get_id_generator()
 
     def refresh_tables(self):
         self._cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
@@ -254,25 +246,10 @@ class InMemoryInformation(object):
         for index_data in data:
             if index_data[2] == self._collection:
                 index_name = index_data[1]
+                if 'autoindex' in index_name:
+                    continue
                 indices.append(tuple(index_name.split('&')))
         self._indices = sorted(indices)
-
-    def _get_id_generator(self):
-        def id_generator(available_now):
-            currently_available = available_now
-            while True:
-                yield currently_available
-                currently_available += 1
-
-        first_available = self._get_next_id()
-        return id_generator(first_available)
-
-    def _get_next_id(self):
-        command = 'select max(_id) from {}'.format(self._collection)
-        db_max = self._cursor.execute(command).fetchone()[0]
-        if db_max is None:
-            return 0
-        return db_max + 1
 
     def has_column(self, col_name):
         return col_name in self._col_names
@@ -295,9 +272,6 @@ class InMemoryInformation(object):
     def indices(self):
         return self._indices[:]
 
-    def get_new_id(self):
-        return next(self._id_generator)
-
     def add_table(self, table_name):
         if not self.has_table(table_name):
             self._tables.append(table_name)
@@ -319,41 +293,8 @@ class InMemoryInformation(object):
             del self._tables[self._tables.index(self._collection)]
 
 
-def get_index_data(index_name):
-    string_list = index_name.split('&')
-    return tuple(string_list)
-
-
 def make_dict(keys, values):
     if all(value is None for value in values):
         return None
     return {key: val for key, val in zip(keys, values)}
 
-
-
-
-"""select priority0.*, priority1.die, priority1.number
-from priority0 left outer join priority1 on priority0.id = priority1.id
-where priority0.die = 'Die(4)' and priority1.die is not NULL
-
-select all the stuff
-from priority0
-left outer join priority1 on priority0.id = priority1.id
-left outer join priority2 on priotity0.id = priority2.id
-
-where
-priority0.die = 'Die(4)' and 10 < priority0.number <100
-and priority1.die
-
-mongodb notes
-import pymongo
-from bson.binary import Binary
-
-{'my_data': Binary(some bytes)}
-
-
-insert({key: val})
-find/find_one({key: exact_vale, key: {'$lte': val}}, return_only {key: 1} not {key: 0}
-return dict()
-
-"""

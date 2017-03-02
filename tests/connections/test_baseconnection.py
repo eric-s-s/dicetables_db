@@ -1,4 +1,5 @@
 import unittest
+from bson.objectid import ObjectId
 
 from mongo_dicetables.connections.baseconnection import BaseConnection
 from mongo_dicetables.serializer import Serializer
@@ -70,18 +71,11 @@ class MockConnection(BaseConnection):
         return None
 
     def insert(self, document):
-        new_id = self._get_next_id()
+        new_id = ObjectId()
         to_insert = document.copy()
         to_insert['_id'] = new_id
         self._documents_pointer().append(to_insert)
         return new_id
-
-    def _get_next_id(self):
-        documents = self._documents_pointer()
-        if not documents:
-            return MockObjId(0)
-        highest_num = max([doc['_id'] for doc in documents]).number
-        return MockObjId(highest_num + 1)
 
     @staticmethod
     def get_id_string(id_obj):
@@ -89,7 +83,7 @@ class MockConnection(BaseConnection):
 
     @staticmethod
     def get_id_object(id_string):
-        return MockObjId(int(id_string))
+        return ObjectId(id_string)
 
     def create_index(self, columns_tuple):
         self._indices_pointer().append(columns_tuple)
@@ -162,32 +156,6 @@ def is_inequality_true(value, inequality_dict):
     }
     operator = inequalities[inequality_str]
     return operator(limiter)
-
-
-class MockObjId(object):
-    def __init__(self, number):
-        self.number = number
-
-    def __str__(self):
-        return str(self.number)
-
-    def __eq__(self, other):
-        return self.number == other.number
-
-    def __ne__(self, other):
-        return not self == other
-
-    def __lt__(self, other):
-        return self.number < other.number
-
-    def __gt__(self, other):
-        return self.number > other.number
-
-    def __le__(self, other):
-        return self.number <= other.number
-
-    def __ge__(self, other):
-        return self.number >= other.number
 
 
 class TestBaseConnection(unittest.TestCase):

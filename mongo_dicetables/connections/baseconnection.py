@@ -1,3 +1,5 @@
+from bson.objectid import ObjectId
+
 class BaseConnection(object):
 
     def get_info(self):
@@ -45,11 +47,11 @@ class BaseConnection(object):
 
     @staticmethod
     def get_id_string(id_obj):
-        raise NotImplementedError
+        return str(id_obj)
 
     @staticmethod
     def get_id_object(id_string):
-        raise NotImplementedError
+        return ObjectId(id_string)
 
     def create_index(self, columns_tuple):
         raise NotImplementedError

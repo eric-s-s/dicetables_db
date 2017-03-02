@@ -5,6 +5,8 @@ import dicetables as dt
 import mongo_dicetables.dbinterface as dbi
 from mongo_dicetables.dbprep import Serializer
 from mongo_dicetables.connections.sql_connection import SQLConnection
+from tests.connections.test_baseconnection import MockConnection
+from mongo_dicetables.connections.mongodb_connection import MongoDBConnection
 
 """
 HEY DUMMY!  DID YOU FORGET TO RUN "mongod" IN BASH? DON'T FORGET!
@@ -12,14 +14,16 @@ HEY DUMMY!  DID YOU FORGET TO RUN "mongod" IN BASH? DON'T FORGET!
 
 
 class TestDBInterface(unittest.TestCase):
-    connection = SQLConnection(':memory:', 'test_collection')
-    interface = dbi.ConnectionCommandInterface(connection)
 
     def setUp(self):
+        # self.connection = SQLConnection(':memory:', 'test_collection')
+        self.connection = MockConnection('test_collection')
+        # self.connection = MongoDBConnection('test', 'test_collection')
+        self.interface = dbi.ConnectionCommandInterface(self.connection)
         self.interface.reset()
 
     def tearDown(self):
-        pass
+        self.connection.close()
 
     def test_connection_info(self):
         self.assertEqual(self.interface.connection_info, self.connection.get_info())
@@ -90,6 +94,8 @@ class TestDBInterface(unittest.TestCase):
         test_list1 = dice_table1.add_die(dt.Die(2)).get_list()
         dice_table0_id = self.interface.add_table(dice_table0)
         dice_table1_id = self.interface.add_table(dice_table1)
+        print(dice_table0_id, dice_table1_id)
+        print(test_list0, '\n', test_list1)
         self.assertEqual(self.interface.find_nearest_table(test_list0), dice_table0_id)
         self.assertEqual(self.interface.find_nearest_table(test_list1), dice_table1_id)
 

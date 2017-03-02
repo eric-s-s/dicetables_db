@@ -34,10 +34,10 @@ class ConnectionCommandInterface(object):
     def find_nearest_table(self, dice_list):
         finder = Finder(self._conn, dice_list)
         obj_id = finder.get_exact_match()
-        if not obj_id:
+        if obj_id is None:
             obj_id = finder.find_nearest_table()
 
-        if not obj_id:
+        if obj_id is None:
             return None
         return self._conn.get_id_string(obj_id)
 

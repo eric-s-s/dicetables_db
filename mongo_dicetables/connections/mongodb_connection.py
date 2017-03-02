@@ -100,10 +100,3 @@ class MongoDBConnection(BaseConnection):
         indices = self.get_info()['indices']
         return columns_tuple in indices
 
-    @staticmethod
-    def get_id_string(id_object):
-        return str(id_object)
-
-    @staticmethod
-    def get_id_object(id_string):
-        return ObjectId(id_string)
