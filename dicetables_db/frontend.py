@@ -2,7 +2,7 @@
 the front-end that handles all requests and returns completed tables
 """
 import dicetables as dt
-from mongo_dicetables import dbinterface as dbi
+from dicetables_db import dbinterface as dbi
 
 
 class TableManagement(object):

@@ -1,7 +1,7 @@
 # import unittest
 #
 # import tests.connections.test_baseconnection as tbc
-# import mongo_dicetables.connections.mongodb_connection as mg
+# import dicetables_db.connections.mongodb_connection as mg
 #
 #
 # class TestNew(tbc.TestBaseConnection):
@@ -57,7 +57,7 @@
 # # from bson.objectid import ObjectId
 # # from pymongo.cursor import Cursor
 # #
-# # import mongo_dicetables.dbinterface as dbi
+# # import dicetables_db.dbinterface as dbi
 # #
 # #
 # # """

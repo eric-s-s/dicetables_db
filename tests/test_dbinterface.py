@@ -2,11 +2,11 @@ import unittest
 
 import dicetables as dt
 
-import mongo_dicetables.dbinterface as dbi
-from mongo_dicetables.dbprep import Serializer
-from mongo_dicetables.connections.sql_connection import SQLConnection
+import dicetables_db.dbinterface as dbi
+from dicetables_db.dbprep import Serializer
+from dicetables_db.connections.sql_connection import SQLConnection
 from tests.connections.test_baseconnection import MockConnection
-from mongo_dicetables.connections.mongodb_connection import MongoDBConnection
+from dicetables_db.connections.mongodb_connection import MongoDBConnection
 
 """
 HEY DUMMY!  DID YOU FORGET TO RUN "mongod" IN BASH? DON'T FORGET!

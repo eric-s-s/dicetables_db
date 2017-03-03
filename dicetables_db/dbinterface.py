@@ -1,5 +1,5 @@
-import mongo_dicetables.dbprep as prep
-from mongo_dicetables.serializer import Serializer
+import dicetables_db.dbprep as prep
+from tools.serializer import Serializer
 
 
 class ConnectionCommandInterface(object):

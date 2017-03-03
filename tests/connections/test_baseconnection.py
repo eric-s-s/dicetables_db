@@ -1,8 +1,9 @@
 import unittest
+
 from bson.objectid import ObjectId
 
-from mongo_dicetables.connections.baseconnection import BaseConnection
-from mongo_dicetables.serializer import Serializer
+from dicetables_db.connections.baseconnection import BaseConnection
+from tools.serializer import Serializer
 
 MOCK_DATABASE = {}
 

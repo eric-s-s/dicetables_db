@@ -1,6 +1,6 @@
 from itertools import combinations
 
-from serializer import Serializer
+from tools.serializer import Serializer
 
 
 class PrepDiceTable(object):

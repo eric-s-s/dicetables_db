@@ -3,7 +3,7 @@ import unittest
 import os
 
 import tests.connections.test_baseconnection as tbc
-from mongo_dicetables.connections.sql_connection import SQLConnection
+from dicetables_db.connections.sql_connection import SQLConnection
 
 
 class TestNew(tbc.TestBaseConnection):

@@ -1,6 +1,9 @@
 from bson.objectid import ObjectId
+from tools.idobject import IdObject
+
 
 class BaseConnection(object):
+    ID_CLASS = IdObject
 
     def get_info(self):
         """
@@ -58,6 +61,3 @@ class BaseConnection(object):
 
     def has_index(self, columns_tuple):
         raise NotImplementedError
-    """
-    SELECT * FROM sqlite_master WHERE type = 'index';
-    """

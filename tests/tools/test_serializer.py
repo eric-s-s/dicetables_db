@@ -1,7 +1,7 @@
 # import unittest
 # import pickle
 #
-# from mongo_dicetables.serializer import Serializer
+# from dicetables_db.serializer import Serializer
 #
 #
 # class TestDBPrep(unittest.TestCase):
