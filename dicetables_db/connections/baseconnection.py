@@ -1,5 +1,5 @@
 from bson.objectid import ObjectId
-from tools.idobject import IdObject
+from dicetables_db.tools.idobject import IdObject
 
 
 class BaseConnection(object):

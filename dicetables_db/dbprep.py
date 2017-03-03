@@ -1,6 +1,6 @@
 from itertools import combinations
 
-from tools.serializer import Serializer
+from dicetables_db.tools.serializer import Serializer
 
 
 class PrepDiceTable(object):

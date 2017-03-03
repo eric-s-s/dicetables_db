@@ -3,7 +3,7 @@ import unittest
 import dicetables as dt
 
 import dicetables_db.dbprep as prep
-from tools.serializer import Serializer
+from dicetables_db.tools.serializer import Serializer
 
 
 class TestDBPrep(unittest.TestCase):

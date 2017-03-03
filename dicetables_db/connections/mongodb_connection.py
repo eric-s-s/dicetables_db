@@ -1,7 +1,7 @@
 from bson.objectid import ObjectId
 
 
-from connections.baseconnection import BaseConnection
+from dicetables_db.connections.baseconnection import BaseConnection
 from pymongo import MongoClient, ASCENDING
 
 
