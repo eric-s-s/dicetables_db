@@ -1,6 +1,3 @@
-from bson.objectid import ObjectId
-
-
 from dicetables_db.connections.baseconnection import BaseConnection
 from pymongo import MongoClient, ASCENDING
 
@@ -55,16 +52,34 @@ class MongoDBConnection(BaseConnection):
 
         :return: iterable of results
         """
-        self._raise_error_for_bad_projection(projection)
-        new_projection = self._make_consistent_projection_api(projection)
-        result = self._collection.find(params_dict, new_projection)
-        return result
+        new_params, new_projection = self._prep_find_inputs(params_dict, projection)
+        results = self._collection.find(new_params, new_projection)
+        return [self._result_with_new_id(result) for result in results]
 
     def find_one(self, params_dict=None, projection=None):
+        new_params, new_projection = self._prep_find_inputs(params_dict, projection)
+        result = self._collection.find_one(new_params, new_projection)
+        return self._result_with_new_id(result)
+
+    def _prep_find_inputs(self, params_dict, projection):
+        new_params = self._params_with_new_id(params_dict)
         self._raise_error_for_bad_projection(projection)
         new_projection = self._make_consistent_projection_api(projection)
-        result = self._collection.find_one(params_dict, new_projection)
-        return result
+        return new_params, new_projection
+
+    def _params_with_new_id(self, params):
+        convert_method = self.id_class().to_bson_id
+        return self._dict_with_new_id(convert_method, params)
+
+    def _result_with_new_id(self, result):
+        convert_method = self.id_class().from_bson_id
+        return self._dict_with_new_id(convert_method, result)
+
+    @staticmethod
+    def _dict_with_new_id(convert_method, input_dict):
+        if input_dict is None:
+            return None
+        return {key: convert_method(val) if key == '_id' else val for key, val in input_dict.items()}
 
     @staticmethod
     def _raise_error_for_bad_projection(projection):
@@ -77,10 +92,10 @@ class MongoDBConnection(BaseConnection):
     def _make_consistent_projection_api(projection):
         if not projection:
             return None
-        new_projection = projection.copy()
-        if 1 in new_projection.values():
+        new_projection = {key: bool(value) for key, value in projection.items()}
+        if True in new_projection.values():
             if '_id' not in new_projection.keys():
-                new_projection['_id'] = 0
+                new_projection['_id'] = False
         return new_projection
 
     def insert(self, document):
@@ -90,7 +105,7 @@ class MongoDBConnection(BaseConnection):
         """
         to_insert = document.copy()
         obj_id = self._collection.insert_one(to_insert).inserted_id
-        return obj_id
+        return self.id_class().from_bson_id(obj_id)
 
     def create_index(self, column_tuple):
         params = [(column_name, ASCENDING) for column_name in column_tuple]

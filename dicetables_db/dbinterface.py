@@ -62,9 +62,9 @@ class Finder(object):
     def get_exact_match(self):
         query_dict = self._get_query_dict_for_exact()
         obj_id_in_dict = self._conn.find_one(query_dict, {'_id': 1})
-        if obj_id_in_dict:
-            return obj_id_in_dict['_id']
-        return None
+        if obj_id_in_dict is None:
+            return None
+        return obj_id_in_dict['_id']
 
     def _get_query_dict_for_exact(self):
         group, dice_dict = next(self._param_maker.get_search_params())[0]

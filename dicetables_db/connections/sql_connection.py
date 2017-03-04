@@ -1,12 +1,9 @@
 import sqlite3 as lite
 
-from bson.objectid import ObjectId
-
 from dicetables_db.connections.baseconnection import BaseConnection
-from dicetables_db.tools.serializer import Serializer
-
 
 # todo OMFG REFACTOR
+
 
 class NonExistentColumnError(ValueError):
     pass
@@ -17,8 +14,7 @@ class SQLConnection(BaseConnection):
         self._path = db_path
 
         self._connection = lite.connect(self._path, detect_types=lite.PARSE_DECLTYPES)
-        lite.register_converter('ObjectId', Serializer.deserialize)
-        lite.register_adapter(ObjectId, Serializer.serialize)
+        lite.register_adapter(self.id_class(), self.id_class().to_string)
 
         self._cursor = self._connection.cursor()
         self._collection = table_name
@@ -31,7 +27,7 @@ class SQLConnection(BaseConnection):
         return not self._cursor.execute(command).fetchall()
 
     def _set_up(self):
-        command = "CREATE TABLE [{}] (_id ObjectId, PRIMARY KEY(_id))".format(self._collection)
+        command = "CREATE TABLE [{}] (_id {}, PRIMARY KEY(_id))".format(self._collection, self.id_class().__name__)
         self._cursor.execute(command)
 
     def get_info(self):
@@ -59,7 +55,7 @@ class SQLConnection(BaseConnection):
         command, values = self._get_command_and_values(params_dict, inclusion_list)
         results = self._cursor.execute(command, values).fetchall()
 
-        to_check = [make_dict(inclusion_list, value_list) for value_list in results]
+        to_check = [self._make_dict(inclusion_list, value_list) for value_list in results]
         return [element for element in to_check if element is not None]
 
     def find_one(self, params_dict=None, projection=None):
@@ -68,7 +64,18 @@ class SQLConnection(BaseConnection):
         results = self._cursor.execute(command, values).fetchone()
         if not results:
             return None
-        return make_dict(inclusion_list, results)
+        return self._make_dict(inclusion_list, results)
+
+    def _make_dict(self, keys, values):
+        if all(value is None for value in values):
+            return None
+        answer = {key: val for key, val in zip(keys, values)}
+        self._change_id_key(answer)
+        return answer
+
+    def _change_id_key(self, answer):
+        if '_id' in answer:
+            answer['_id'] = self.id_class().from_string(answer['_id'])
 
     def _get_command_and_values(self, params_dict, inclusion_list):
         safe_col_names = ['[{}]'.format(col) for col in inclusion_list]
@@ -144,7 +151,7 @@ class SQLConnection(BaseConnection):
             raise NonExistentColumnError
 
     def insert(self, document):
-        id_to_return = ObjectId()
+        id_to_return = self.id_class().new()
         self._update_columns(document)
         values_str = '?, '
         values = [id_to_return]
@@ -296,8 +303,5 @@ class InMemoryInformation(object):
             del self._tables[self._tables.index(self._collection)]
 
 
-def make_dict(keys, values):
-    if all(value is None for value in values):
-        return None
-    return {key: val for key, val in zip(keys, values)}
+
 

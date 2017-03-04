@@ -1,9 +1,11 @@
-from bson.objectid import ObjectId
 from dicetables_db.tools.idobject import IdObject
 
 
 class BaseConnection(object):
-    ID_CLASS = IdObject
+
+    @classmethod
+    def id_class(cls):
+        return IdObject
 
     def get_info(self):
         """
@@ -28,14 +30,14 @@ class BaseConnection(object):
     def find_one(self, params_dict=None, restrictions=None):
         """
 
-        :return: document dictionary
+        :return: document dictionary or None
         """
         raise NotImplementedError
 
     def insert(self, document):
         """
 
-        :return: id_object
+        :return: instance of self.id_class()
         """
         raise NotImplementedError
 
@@ -50,11 +52,11 @@ class BaseConnection(object):
 
     @staticmethod
     def get_id_string(id_obj):
-        return str(id_obj)
+        return id_obj.to_string()
 
     @staticmethod
     def get_id_object(id_string):
-        return ObjectId(id_string)
+        return IdObject.from_string(id_string)
 
     def create_index(self, columns_tuple):
         raise NotImplementedError

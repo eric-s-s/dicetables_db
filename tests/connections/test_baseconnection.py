@@ -1,6 +1,5 @@
 import unittest
 
-from bson.objectid import ObjectId
 
 from dicetables_db.connections.baseconnection import BaseConnection
 from dicetables_db.tools.serializer import Serializer
@@ -72,19 +71,19 @@ class MockConnection(BaseConnection):
         return None
 
     def insert(self, document):
-        new_id = ObjectId()
+        new_id = self.id_class().new()
         to_insert = document.copy()
         to_insert['_id'] = new_id
         self._documents_pointer().append(to_insert)
         return new_id
 
-    @staticmethod
-    def get_id_string(id_obj):
-        return str(id_obj)
-
-    @staticmethod
-    def get_id_object(id_string):
-        return ObjectId(id_string)
+    # @staticmethod
+    # def get_id_string(id_obj):
+    #     return str(id_obj)
+    #
+    # @staticmethod
+    # def get_id_object(id_string):
+    #     return ObjectId(id_string)
 
     def create_index(self, columns_tuple):
         self._indices_pointer().append(columns_tuple)
