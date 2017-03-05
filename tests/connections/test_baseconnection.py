@@ -77,14 +77,6 @@ class MockConnection(BaseConnection):
         self._documents_pointer().append(to_insert)
         return new_id
 
-    # @staticmethod
-    # def get_id_string(id_obj):
-    #     return str(id_obj)
-    #
-    # @staticmethod
-    # def get_id_object(id_string):
-    #     return ObjectId(id_string)
-
     def create_index(self, columns_tuple):
         self._indices_pointer().append(columns_tuple)
 

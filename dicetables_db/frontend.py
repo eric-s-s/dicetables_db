@@ -16,8 +16,8 @@ class TableManagement(object):
         return cls(interface)
 
     def save(self, dice_table):
-        if not is_new_table(dice_table) and not self._interface.has_table(dice_table):
-            self._interface.add_table(dice_table)
+        if not is_new_table(dice_table) and not self._interface.has_collection(dice_table):
+            self._interface.add_collection(dice_table)
 
 
 def is_new_table(dice_table):

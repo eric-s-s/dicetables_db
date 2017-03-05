@@ -71,14 +71,6 @@ class TestNew(tbc.TestBaseConnection):
         new_connection.create_index(('foo', 'bar'))
         self.assertEqual(new_connection.get_info(), expected)
 
-    def test_37_get_id_object(self):
-        id_obj = self.connection.insert({'a': 1})
-        id_str = self.connection.get_id_string(id_obj)
-        new_id_obj = self.connection.get_id_object(id_str)
-
-        self.assertIsInstance(new_id_obj, id_obj.__class__)
-        self.assertEqual(new_id_obj, id_obj)
-
     def test_46_data_persistence(self):
 
         connection_1 = self.new_persistent_connection('new_test')
