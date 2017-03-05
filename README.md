@@ -7,7 +7,7 @@ first start serving with "mongod" command.
 
 >>> import dicetables as dt
 
->>> conn = dbi.Connection('<db_name>', '<collection_name>')
+>>> conn = dbi.MongoDBConnection('<db_name>', '<collection_name>')
 
 >>> interface = dbi.ConnecitonCommandInterface(conn)
 

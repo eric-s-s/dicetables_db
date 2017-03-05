@@ -1,8 +1,9 @@
 import unittest
-import pickle
+
 import dicetables as dt
 
-import mongo_dicetables.dbprep as prep
+import dicetables_db.dbprep as prep
+from dicetables_db.tools.serializer import Serializer
 
 
 class TestDBPrep(unittest.TestCase):
@@ -28,20 +29,12 @@ class TestDBPrep(unittest.TestCase):
         self.assertEqual(prep.get_label_list([(dt.Die(3), 2), (dt.WeightedDie({2: 2}), 1)]),
                          [('Die(3)', 2), ('WeightedDie({1: 0, 2: 2})', 1)])
 
-    def test_Serializer_serialize(self):
-        self.assertEqual(prep.Serializer.serialize(12), pickle.dumps(12))
-
-    def test_Serializer_deserialize(self):
-        data = prep.Serializer.serialize(12)
-        self.assertNotEqual(data, 12)
-        self.assertEqual(prep.Serializer.deserialize(data), 12)
-
     def test_PrepDiceTable_init(self):
         table = dt.DiceTable.new().add_die(dt.Die(2))
         prepped = prep.PrepDiceTable(table)
         self.assertEqual(prepped.get_label_list(), [('Die(2)', 1)])
         self.assertEqual(prepped.get_score(), 2)
-        self.assertEqual(prepped.get_serialized(), prep.Serializer.serialize(table))
+        self.assertEqual(prepped.get_serialized(), Serializer.serialize(table))
 
     def test_PrepDiceTable_disallows_empty_table(self):
         self.assertRaises(ValueError, prep.PrepDiceTable, dt.DiceTable.new())
@@ -67,20 +60,20 @@ class TestDBPrep(unittest.TestCase):
         prepped = prep.PrepDiceTable(table)
         expected = {'group': 'Die(2)&Die(3)',
                     'score': 5,
-                    'serialized': prep.Serializer.serialize(table),
+                    'serialized': Serializer.serialize(table),
                     'Die(2)': 1,
                     'Die(3)': 1}
         self.assertEqual(prepped.get_dict(), expected)
 
-    def test_RetrieveDiceTable_init_creates_score(self):
+    def test_SearchParams_init_creates_score(self):
         table_list = [(dt.Die(2), 2), (dt.Die(3), 1)]
         retriever = prep.SearchParams(table_list)
         self.assertEqual(retriever.get_score(), (4 + 3))
 
-    def test_RetrieveDiceTable_init_disallows_empty_list(self):
+    def test_SearchParams_init_disallows_empty_list(self):
         self.assertRaises(ValueError, prep.SearchParams, [])
 
-    def test_RetrieveDiceTable_get_search_params(self):
+    def test_SearchParams_get_search_params(self):
         table_list = [(dt.Die(1), 4), (dt.Die(2), 2), (dt.Die(3), 1)]
         retriever = prep.SearchParams(table_list)
         searcher = retriever.get_search_params()
@@ -98,7 +91,7 @@ class TestDBPrep(unittest.TestCase):
                          )
         self.assertRaises(StopIteration, next, searcher)
 
-    def test_RetrieveDiceTable_get_search_params_can_have_two_independent_generators(self):
+    def test_SearchParams_get_search_params_can_have_two_independent_generators(self):
         table_list = [(dt.Die(1), 4), (dt.Die(2), 2), (dt.Die(3), 1)]
         retriever = prep.SearchParams(table_list)
         searcher = retriever.get_search_params()
@@ -133,7 +126,7 @@ class TestDBPrep(unittest.TestCase):
                          )
         self.assertRaises(StopIteration, next, other_searcher)
 
-    def test_RetrieveDiceTable_get_search_params_stop_iteration(self):
+    def test_SearchParams_get_search_params_stop_iteration(self):
         table_list = [(dt.Die(1), 4), (dt.Die(2), 2), (dt.Die(3), 1)]
         retriever = prep.SearchParams(table_list)
         result = [lst for lst in retriever.get_search_params()]
