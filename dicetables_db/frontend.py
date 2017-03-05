@@ -2,7 +2,7 @@
 the front-end that handles all requests and returns completed tables
 """
 import dicetables as dt
-from dicetables_db import dbinterface as dbi
+from dicetables_db import insertandretrieve as dbi
 
 
 class TableManagement(object):
@@ -12,7 +12,7 @@ class TableManagement(object):
     @classmethod
     def create_for_mongo_db(cls, db_name, collection_name, ip='localhost', port=27017):
         connection = dbi.Connection(db_name, collection_name, ip=ip,  port=port)
-        interface = dbi.ConnectionCommandInterface(connection)
+        interface = dbi.DiceTableInsertionAndRetrieval(connection)
         return cls(interface)
 
     def save(self, dice_table):

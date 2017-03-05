@@ -179,7 +179,7 @@ class SQLConnection(BaseConnection):
 
         command = 'alter table [{}] add column [{}] {}'.format(self._collection, column, type_str)
         if default is not None:
-            command += ' default {}'.format(default)
+            command += ' default {!r}'.format(default)
         self._cursor.execute(command)
         self._in_memory.add_column(column)
 

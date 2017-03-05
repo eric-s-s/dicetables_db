@@ -1,11 +1,11 @@
-from dicetables_db.tools.idobject import IdObject
+from dicetables_db.tools.documentid import DocumentId
 
 
 class BaseConnection(object):
 
     @classmethod
     def id_class(cls):
-        return IdObject
+        return DocumentId
 
     def get_info(self):
         """
@@ -49,14 +49,6 @@ class BaseConnection(object):
 
     def close(self):
         raise NotImplementedError
-
-    @staticmethod
-    def get_id_string(id_obj):
-        return id_obj.to_string()
-
-    @staticmethod
-    def get_id_object(id_string):
-        return IdObject.from_string(id_string)
 
     def create_index(self, columns_tuple):
         raise NotImplementedError

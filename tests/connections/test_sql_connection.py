@@ -6,7 +6,7 @@ import tests.connections.test_baseconnection as tbc
 from dicetables_db.connections.sql_connection import SQLConnection
 
 
-class TestNew(tbc.TestBaseConnection):
+class TestSQLConnection(tbc.TestBaseConnection):
     connection = SQLConnection(':memory:', 'test')
     current_connections = []
     delete_test_dot_db = False
@@ -71,16 +71,19 @@ class TestNew(tbc.TestBaseConnection):
         new_connection.create_index(('foo', 'bar'))
         self.assertEqual(new_connection.get_info(), expected)
 
-    def test_46_data_persistence(self):
+    def test_48_data_persistence(self):
 
         connection_1 = self.new_persistent_connection('new_test')
-        id_obj = connection_1.insert({'a': 1})
+        doc_id = connection_1.insert({'a': 1})
         connection_1.create_index(('a', ))
         connection_1.close()
 
         connection_2 = self.new_persistent_connection('new_test')
         self.assertTrue(connection_2.has_index(('a', )))
-        self.assertEqual(connection_2.find_one(), {'_id': id_obj, 'a': 1})
+        self.assertEqual(connection_2.find_one(), {'_id': doc_id, 'a': 1})
+
+class AdditionalSQLTests(unittest.TestCase):
+    pass
 
 
 if __name__ == '__main__':

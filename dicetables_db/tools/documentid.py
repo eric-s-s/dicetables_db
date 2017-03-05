@@ -1,7 +1,7 @@
 from bson.objectid import ObjectId
 
 
-class IdObject(object):
+class DocumentId(object):
     def __init__(self, obj_id):
         self._id = obj_id
 
@@ -31,7 +31,7 @@ class IdObject(object):
         return 'ObjectId.from_string({})'.format(self)
 
     def __eq__(self, other):
-        if not isinstance(other, IdObject):
+        if not isinstance(other, DocumentId):
             return False
         return self._id == other.to_bson_id()
 

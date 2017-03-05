@@ -65,15 +65,15 @@ class TestDBPrep(unittest.TestCase):
                     'Die(3)': 1}
         self.assertEqual(prepped.get_dict(), expected)
 
-    def test_RetrieveDiceTable_init_creates_score(self):
+    def test_SearchParams_init_creates_score(self):
         table_list = [(dt.Die(2), 2), (dt.Die(3), 1)]
         retriever = prep.SearchParams(table_list)
         self.assertEqual(retriever.get_score(), (4 + 3))
 
-    def test_RetrieveDiceTable_init_disallows_empty_list(self):
+    def test_SearchParams_init_disallows_empty_list(self):
         self.assertRaises(ValueError, prep.SearchParams, [])
 
-    def test_RetrieveDiceTable_get_search_params(self):
+    def test_SearchParams_get_search_params(self):
         table_list = [(dt.Die(1), 4), (dt.Die(2), 2), (dt.Die(3), 1)]
         retriever = prep.SearchParams(table_list)
         searcher = retriever.get_search_params()
@@ -91,7 +91,7 @@ class TestDBPrep(unittest.TestCase):
                          )
         self.assertRaises(StopIteration, next, searcher)
 
-    def test_RetrieveDiceTable_get_search_params_can_have_two_independent_generators(self):
+    def test_SearchParams_get_search_params_can_have_two_independent_generators(self):
         table_list = [(dt.Die(1), 4), (dt.Die(2), 2), (dt.Die(3), 1)]
         retriever = prep.SearchParams(table_list)
         searcher = retriever.get_search_params()
@@ -126,7 +126,7 @@ class TestDBPrep(unittest.TestCase):
                          )
         self.assertRaises(StopIteration, next, other_searcher)
 
-    def test_RetrieveDiceTable_get_search_params_stop_iteration(self):
+    def test_SearchParams_get_search_params_stop_iteration(self):
         table_list = [(dt.Die(1), 4), (dt.Die(2), 2), (dt.Die(3), 1)]
         retriever = prep.SearchParams(table_list)
         result = [lst for lst in retriever.get_search_params()]
