@@ -2,12 +2,6 @@ import sqlite3 as lite
 
 from dicetables_db.connections.baseconnection import BaseConnection
 
-# todo OMFG REFACTOR
-
-
-class NonExistentColumnError(ValueError):
-    pass
-
 
 class SQLConnection(BaseConnection):
     def __init__(self, db_path, collection_name):
@@ -21,7 +15,7 @@ class SQLConnection(BaseConnection):
 
         if self._no_such_collection():
             self._set_up()
-        self._in_memory = InMemoryInformation(self._cursor, self._collection)
+        self._in_memory = InMemoryInformation(self)
 
     def _no_such_collection(self):
         command = 'pragma table_info([{}]);'.format(self._collection)
@@ -34,7 +28,7 @@ class SQLConnection(BaseConnection):
     def get_info(self):
         out = {
             'db': self._path,
-            'collections': self._in_memory.tables,
+            'collections': self._in_memory.collections,
             'current_collection': self._collection,
             'indices': self._in_memory.indices
         }
@@ -43,6 +37,10 @@ class SQLConnection(BaseConnection):
     @property
     def cursor(self):
         return self._cursor
+
+    @property
+    def collection(self):
+        return self._collection
 
     def is_collection_empty(self):
         if self._no_such_collection():
@@ -146,11 +144,11 @@ class SQLConnection(BaseConnection):
     def insert(self, document):
         self._update_columns(document)
         id_to_return = self.id_class().new()
-        command, values = self._get_commands(document, id_to_return)
+        command, values = self._insert_command_and_values(document, id_to_return)
         self._cursor.execute(command, values)
         return id_to_return
 
-    def _get_commands(self, document, id_to_return):
+    def _insert_command_and_values(self, document, id_to_return):
         values_str = '?, '
         values = [id_to_return]
         command = 'insert into [{}] (_id, '.format(self._collection)
@@ -162,7 +160,7 @@ class SQLConnection(BaseConnection):
         return command, values
 
     def _update_columns(self, document):
-        for column, value in document.items():
+        for column, value in sorted(document.items()):
             if not self._in_memory.has_column(column):
                 self._add_column(column, value)
 
@@ -228,9 +226,9 @@ class SQLConnection(BaseConnection):
 
 
 class InMemoryInformation(object):
-    def __init__(self, cursor, collection_name):
-        self._cursor = cursor
-        self._collection = collection_name
+    def __init__(self, connection):
+        self._cursor = connection.cursor
+        self._collection = connection.collection
         self._collections = None
         self._col_names = None
         self._indices = None
@@ -251,7 +249,7 @@ class InMemoryInformation(object):
         self._col_names = [col_data[1] for col_data in data]
 
     def refresh_indices(self):
-        self._cursor.execute("select * from sqlite_master where type='index'")
+        self._cursor.execute("select * from sqlite_master where type='index';")
         data = self._cursor.fetchall()
         indices = []
         for index_data in data:
@@ -272,7 +270,7 @@ class InMemoryInformation(object):
         return columns_tuple in self._indices
 
     @property
-    def tables(self):
+    def collections(self):
         return self._collections[:]
 
     @property
