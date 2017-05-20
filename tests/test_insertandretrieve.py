@@ -104,8 +104,7 @@ class TestDBInterface(unittest.TestCase):
         table = dt.DiceTable.new().add_die(dt.Die(2))
         doc_id = self.interface.add_table(table)
         new_table = self.interface.get_table(doc_id)
-        self.assertEqual(new_table.get_dict(), {1: 1, 2: 1})
-        self.assertEqual(new_table.get_list(), [(dt.Die(2), 1)])
+        self.assertEqual(new_table, table)
 
     def test_Finder_get_exact_match_returns_None(self):
         finder = dbi.Finder(self.connection, [(dt.Die(2), 1)])
