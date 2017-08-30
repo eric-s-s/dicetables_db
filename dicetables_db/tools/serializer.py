@@ -3,9 +3,9 @@ import pickle
 
 class Serializer(object):
     @staticmethod
-    def serialize(thing):
+    def serialize(thing) -> bytes:
         return pickle.dumps(thing)
 
     @staticmethod
-    def deserialize(data):
+    def deserialize(data: bytes):
         return pickle.loads(data)

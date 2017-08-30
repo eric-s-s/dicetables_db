@@ -1,9 +1,10 @@
 import dicetables_db.dbprep as prep
 from dicetables_db.tools.serializer import Serializer
+from dicetables_db.connections.baseconnection import BaseConnection
 
 
 class DiceTableInsertionAndRetrieval(object):
-    def __init__(self, connection):
+    def __init__(self, connection: BaseConnection):
         self._conn = connection
         if not self.has_required_index():
             self._create_required_index()

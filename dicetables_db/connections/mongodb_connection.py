@@ -1,9 +1,10 @@
-from dicetables_db.connections.baseconnection import BaseConnection
 from pymongo import MongoClient, ASCENDING
+
+from dicetables_db.connections.baseconnection import BaseConnection
 
 
 class MongoDBConnection(BaseConnection):
-    def __init__(self, db_name, collection_name, ip='localhost', port=27017):
+    def __init__(self, db_name: str, collection_name: str, ip='localhost', port=27017):
         self._client = MongoClient(ip, port)
         self._db = self._client[db_name]
         self._collection = self._db[collection_name]

@@ -1,4 +1,5 @@
 from itertools import combinations
+from typing import List, Tuple
 
 from dicetables_db.tools.serializer import Serializer
 
@@ -18,13 +19,13 @@ class PrepDiceTable(object):
     def get_serialized(self):
         return self._serialized
 
-    def get_label_list(self):
+    def get_label_list(self) -> List[Tuple[str, int]]:
         return self._label_list[:]
 
-    def get_group_list(self):
+    def get_group_list(self) -> List[str]:
         return [repr_num[0] for repr_num in self._label_list]
 
-    def get_group(self):
+    def get_group(self) -> str:
         return '&'.join(self.get_group_list())
 
     def get_dict(self):
@@ -56,11 +57,11 @@ class SearchParams(object):
             elements_in_group -= 1
             yield out
 
-    def get_score(self):
+    def get_score(self) -> int:
         return self._score
 
 
-def get_score(dice_list):
+def get_score(dice_list: list) -> int:
     score = 0
     for die, num in dice_list:
         size = die.get_size()
@@ -70,5 +71,5 @@ def get_score(dice_list):
     return score
 
 
-def get_label_list(dice_list):
+def get_label_list(dice_list) -> List[Tuple[str, int]]:
     return [(repr(die), num) for die, num in dice_list]
