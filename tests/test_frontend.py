@@ -1,8 +1,16 @@
-# import unittest
-#
-# import dbinterface as dbi
-# import dicetables as dt
-# from frontend import TableManagement
+import unittest
+
+from dicetables_db.frontend import (TableCreator, make_up_difference, is_new_table, create_insert_retrieve,
+                                    ServerTalker, parse_list, get_mod_and_new_list)
+from dicetables_db.insertandretrieve import DiceTableInsertionAndRetrieval
+from dicetables_db.connections.mongodb_connection import MongoDBConnection
+from dicetables_db.connections.sql_connection import SQLConnection
+
+class TestFrontEnd(unittest.TestCase):
+    def test_table_creator(self):
+        TableCreator.create_for_mongo_db('test', 'test_db')
+
+
 #
 #
 # class MockInterface(object):
@@ -44,7 +52,7 @@
 #     # interface = dbi.ConnectionCommandInterface(connection)
 #
 #     def setUp(self):
-#         self.manager = TableManagement(MockInterface())
+#         self.manager = TableCreator(MockInterface())
 #
 #     def tearDown(self):
 #         del self.manager
@@ -74,5 +82,5 @@
 #         self.manager.save_current()
 #         self.assertEqual(len(list(self.connection.find())), 5)
 #
-# if __name__ == "__main__":
-#     unittest.main()
+if __name__ == "__main__":
+    unittest.main()

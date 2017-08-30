@@ -7,9 +7,9 @@ from dicetables_db.connections.sql_connection import SQLConnection, InMemoryInfo
 
 
 class TestSQLConnection(tbc.TestBaseConnection):
+    connection_class = SQLConnection
     connection = SQLConnection(':memory:', 'test')
-    current_connections = []
-    delete_test_dot_db = False
+    persistent_connections = []
 
     @staticmethod
     def remove_test_db():
@@ -17,17 +17,21 @@ class TestSQLConnection(tbc.TestBaseConnection):
             os.remove('test.db')
 
     def new_persistent_connection(self, collection_name):
-        connection_class = self.connection.__class__
+        connection_class = self.connection_class
         out = connection_class('test.db', collection_name)
-        self.current_connections.append(out)
-        self.delete_test_dot_db = True
+        self.persistent_connections.append(out)
         return out
 
+    def empty_persistent_db(self):
+        probe = self.new_persistent_connection('probe')
+        collections = probe.get_info()['collections']
+        for collection_name in collections:
+            probe.cursor.execute('DROP TABLE if exists [{}]'.format(collection_name))
+        probe.drop_collection()
+        probe.close()
+
     def new_connection(self, collection_name):
-        connection_class = self.connection.__class__
-        out = connection_class(':memory:', collection_name)
-        self.current_connections.append(out)
-        return out
+        return super(TestSQLConnection, self).new_connection(':memory:', collection_name)
 
     @classmethod
     def setUpClass(cls):
@@ -38,15 +42,26 @@ class TestSQLConnection(tbc.TestBaseConnection):
         cls.remove_test_db()
 
     def setUp(self):
+        self.persistent_connections = []
         self.connection = self.new_connection('test')
 
     def tearDown(self):
-        if self.delete_test_dot_db:
-            self.empty_database()
-            self.delete_test_dot_db = False
-        for connection in self.current_connections:
+        for connection in self.persistent_connections:
             connection.close()
-        self.current_connections = []
+        if self.persistent_connections:
+            self.empty_persistent_db()
+        self.persistent_connections = []
+
+    def test_TestSQLConnection_new_connection_is_returning_correct_type(self):
+        connection = self.new_connection('random')
+        self.assertIs(type(connection), SQLConnection)
+        self.assertEqual(connection.get_info()['db'], ':memory:')
+
+    def test_TestSQLConnections_new_persistent_connection(self):
+        connection = self.new_persistent_connection('random')
+        self.assertIs(type(connection), SQLConnection)
+        self.assertEqual(connection.get_info()['db'], 'test.db')
+        self.assertEqual(connection.get_info()['collections'], ['random'])
 
     def test_1_get_info(self):
         expected = {
@@ -55,6 +70,7 @@ class TestSQLConnection(tbc.TestBaseConnection):
             'current_collection': 'test',
             'indices': []
         }
+        self.assertIsInstance(self.connection, SQLConnection)
         self.assertEqual(self.connection.get_info(), expected)
 
     def test_2_get_info_new_connection(self):

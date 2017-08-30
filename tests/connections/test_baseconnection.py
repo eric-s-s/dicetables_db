@@ -44,11 +44,11 @@ class MockConnection(BaseConnection):
         return not self._documents_pointer()
 
     def reset_collection(self):
-        global MOCK_DATABASE
-        MOCK_DATABASE[self.collection_name] = {'docs': [], 'indices': []}
+        if self.collection_name is not None:
+            global MOCK_DATABASE
+            MOCK_DATABASE[self.collection_name] = {'docs': [], 'indices': []}
 
     def drop_collection(self):
-        self.reset_collection()
         global MOCK_DATABASE
         del MOCK_DATABASE[self.collection_name]
 
@@ -227,12 +227,12 @@ class TestBaseConnection(unittest.TestCase):
         self.connection.create_index(('foo', ))
 
         self.assertFalse(self.connection.is_collection_empty())
-        self.assertTrue(self.connection.get_info()['indices'])
+        self.assertNotEqual(self.connection.get_info()['indices'], [])
 
         self.connection.reset_collection()
 
         self.assertTrue(self.connection.is_collection_empty())
-        self.assertFalse(self.connection.get_info()['indices'])
+        self.assertEqual(self.connection.get_info()['indices'], [])
 
     def test_7_reset_collection_multiple_collections_only_empties_requested(self):
         document = {'a': 1}
@@ -266,6 +266,7 @@ class TestBaseConnection(unittest.TestCase):
         self.assertRaises(Exception, self.connection.find)
         self.assertRaises(Exception, self.connection.find_one)
         self.assertRaises(Exception, self.connection.insert, {'a': 1})
+        self.assertRaises(Exception, self.connection.drop_collection)
 
     def test_11_id_class__class_method(self):
         self.assertEqual(self.connection.id_class(), DocumentId)

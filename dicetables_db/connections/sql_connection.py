@@ -13,16 +13,12 @@ class SQLConnection(BaseConnection):
 
         self._cursor = self._connection.cursor()
 
-        if self._no_such_collection():
-            self._set_up()
+        self._set_up()
         self._in_memory = InMemoryInformation(self)
 
-    def _no_such_collection(self):
-        command = 'pragma table_info([{}]);'.format(self._collection)
-        return not self._cursor.execute(command).fetchall()
-
     def _set_up(self):
-        command = "CREATE TABLE [{}] (_id {}, PRIMARY KEY(_id))".format(self._collection, self.id_class().__name__)
+        command = "CREATE TABLE IF NOT EXISTS [{}] (_id {}, PRIMARY KEY(_id))".format(self._collection,
+                                                                                      self.id_class().__name__)
         self._cursor.execute(command)
 
     def get_info(self):
@@ -43,11 +39,14 @@ class SQLConnection(BaseConnection):
         return self._collection
 
     def is_collection_empty(self):
-        if self._no_such_collection():
+        command = 'PRAGMA TABLE_INFO([{}]);'.format(self._collection)
+        table_info = self._cursor.execute(command).fetchone()
+        if table_info is None:
             return True
-        command = "select count(*) from {}".format(self._collection)
-        answer = self._cursor.execute(command).fetchall()
-        return not answer[0][0]
+
+        count_entries = "SELECT COUNT(*) FROM {}".format(self._collection)
+        entries = self._cursor.execute(count_entries).fetchone()[0]
+        return entries == 0
 
     def find(self, params_dict=None, projection=None):
         keys_list = self._get_columns_list(projection)
@@ -89,7 +88,7 @@ class SQLConnection(BaseConnection):
 
     def _get_command_and_values(self, params_dict, columns_list):
         if self._has_non_existent_columns(params_dict) or not columns_list:
-            return 'select null from [{}]'.format(self._collection), []
+            return 'SELECT NULL FROM [{}]'.format(self._collection), []
 
         select_statement = self._get_select_statement(columns_list)
         where_statement, values = self._get_statement_and_values_for_where(params_dict)
@@ -103,7 +102,7 @@ class SQLConnection(BaseConnection):
     def _get_select_statement(self, columns_list):
         safe_col_names = ['[{}]'.format(col) for col in columns_list]
         select_string = ', '.join(safe_col_names)
-        command_start = 'select {} from [{}]'.format(select_string, self._collection)
+        command_start = 'SELECT {} FROM [{}]'.format(select_string, self._collection)
         return command_start
 
     def _get_statement_and_values_for_where(self, params_dict):
@@ -116,7 +115,7 @@ class SQLConnection(BaseConnection):
             where_vals.append('[{}]{}?'.format(col, inequality_str))
             values.append(value)
 
-        where_string = ' where ' + ' and '.join(where_vals)
+        where_string = ' WHERE ' + ' AND '.join(where_vals)
         return where_string, values
 
     @staticmethod
@@ -151,12 +150,12 @@ class SQLConnection(BaseConnection):
     def _insert_command_and_values(self, document, id_to_return):
         values_str = '?, '
         values = [id_to_return]
-        command = 'insert into [{}] (_id, '.format(self._collection)
+        command = 'INSERT INTO [{}] (_id, '.format(self._collection)
         for col, value in document.items():
             command += '[{}], '.format(col)
             values_str += '?, '
             values.append(value)
-        command = '{}) values({})'.format(command.rstrip(', '), values_str.rstrip(', '))
+        command = '{}) VALUES({})'.format(command.rstrip(', '), values_str.rstrip(', '))
         return command, values
 
     def _update_columns(self, document):
@@ -175,15 +174,15 @@ class SQLConnection(BaseConnection):
             type_str = 'BLOB'
             default = None
 
-        command = 'alter table [{}] add column [{}] {}'.format(self._collection, column, type_str)
+        command = 'ALTER TABLE [{}] ADD COLUMN [{}] {}'.format(self._collection, column, type_str)
         if default is not None:
-            command += ' default {!r}'.format(default)
+            command += ' DEFAULT {!r}'.format(default)
         self._cursor.execute(command)
         self._in_memory.add_column(column)
 
     def drop_collection(self):
         self._drop_indices()
-        self._cursor.execute('DROP TABLE if exists [{}]'.format(self._collection))
+        self._cursor.execute('DROP TABLE IF EXISTS [{}]'.format(self._collection))
         self._in_memory.drop_collection()
 
     def reset_collection(self):
@@ -194,7 +193,7 @@ class SQLConnection(BaseConnection):
     def _drop_indices(self):
         for index in self._in_memory.indices:
             index_name = '&'.join(index)
-            command = 'drop index [{}]'.format(index_name)
+            command = 'DROP INDEX [{}]'.format(index_name)
             self._cursor.execute(command)
         self._in_memory.refresh_indices()
 
@@ -216,13 +215,38 @@ class SQLConnection(BaseConnection):
 
         index_values = ', '.join(safe_col_names)
         index_name = '&'.join(columns_tuple)
-        command = "create index [{}] on [{}] ({})".format(index_name, self._collection, index_values)
+        command = "CREATE INDEX [{}] ON [{}] ({})".format(index_name, self._collection, index_values)
 
         self._cursor.execute(command)
         self._in_memory.add_index(columns_tuple)
 
     def has_index(self, columns_tuple):
         return self._in_memory.has_index(columns_tuple)
+
+    # TODO flesh out these two methods and test them.  just basic idea. need serious
+    def save_to_target(self, db_name):
+        """
+        this is just notes.  this is a super buggy idea and will only work with a bit of tweaking.
+        """
+        commands = self._connection.iterdump()
+        target_db = lite.connect(db_name)
+        cursor = target_db.cursor()
+        for command in commands:
+            cursor.execute(command)
+        target_db.commit()
+        target_db.close()
+
+    def load_from_target(self, db_name):
+        """
+        this is just notes.  this is a super buggy idea and will only work with a bit of tweaking.
+        """
+        self.drop_collection()
+        db_connect = lite.connect(db_name)
+        commands = db_connect.iterdump()
+
+        for command in commands:
+            self.cursor.execute(command)
+        self._in_memory.refresh_information()
 
 
 class InMemoryInformation(object):
@@ -240,7 +264,7 @@ class InMemoryInformation(object):
         self.refresh_indices()
 
     def refresh_collections(self):
-        self._cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        self._cursor.execute("SELECT name FROM sqlite_master WHERE TYPE='table';")
         self._collections = sorted([element[0] for element in self._cursor.fetchall()])
 
     def refresh_columns(self):
@@ -249,7 +273,7 @@ class InMemoryInformation(object):
         self._col_names = [col_data[1] for col_data in data]
 
     def refresh_indices(self):
-        self._cursor.execute("select * from sqlite_master where type='index';")
+        self._cursor.execute("SELECT * FROM sqlite_master WHERE TYPE='index';")
         data = self._cursor.fetchall()
         indices = []
         for index_data in data:
@@ -300,7 +324,3 @@ class InMemoryInformation(object):
         self._col_names = []
         if self._collection in self._collections:
             del self._collections[self._collections.index(self._collection)]
-
-
-
-

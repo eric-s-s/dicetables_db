@@ -42,7 +42,7 @@ class DiceTableInsertionAndRetrieval(object):
         return doc_id
 
     def get_table(self, doc_id):
-        data = self._conn.find_one({'_id': doc_id}, {'serialized': 1})
+        data = self._conn.find_one({'_id': doc_id}, {'serialized': True})
         return Serializer.deserialize(data['serialized'])
 
 
@@ -104,4 +104,3 @@ class Finder(object):
         if score_id_dict['score'] > self._highest_found_score:
             self._doc_id = score_id_dict['_id']
             self._highest_found_score = score_id_dict['score']
-
