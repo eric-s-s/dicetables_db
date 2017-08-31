@@ -1,11 +1,13 @@
 from itertools import combinations
 from typing import List, Tuple
 
+from dicetables import DiceTable
+
 from dicetables_db.tools.serializer import Serializer
 
 
 class PrepDiceTable(object):
-    def __init__(self, dice_table):
+    def __init__(self, dice_table: DiceTable) -> None:
         input_list = dice_table.get_list()
         if not input_list:
             raise ValueError('DiceTable may not be empty.')
@@ -13,7 +15,7 @@ class PrepDiceTable(object):
         self._score = get_score(input_list)
         self._label_list = get_label_list(input_list)
 
-    def get_score(self):
+    def get_score(self) -> int:
         return self._score
 
     def get_serialized(self):
@@ -36,7 +38,7 @@ class PrepDiceTable(object):
 
 
 class SearchParams(object):
-    def __init__(self, dice_list):
+    def __init__(self, dice_list: list) -> None:
         if not dice_list:
             raise ValueError('List may not be empty')
         self._score = get_score(dice_list)
@@ -71,5 +73,5 @@ def get_score(dice_list: list) -> int:
     return score
 
 
-def get_label_list(dice_list) -> List[Tuple[str, int]]:
+def get_label_list(dice_list: list) -> List[Tuple[str, int]]:
     return [(repr(die), num) for die, num in dice_list]
