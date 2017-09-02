@@ -1,7 +1,7 @@
 from threading import Thread
 from typing import List, Tuple
 
-import dicetables as dt
+from dicetables import DiceRecord, DiceTable
 
 from dicetables_db.connections.sql_connection import SQLConnection
 from dicetables_db.connections.mongodb_connection import MongoDBConnection
@@ -27,23 +27,24 @@ class TaskManager(object):
         db_interface = create_insert_retrieve('SQL', db_path, collection_name)
         return cls(db_interface)
 
-    def extract_modifiers(self, dice_list: list) -> Tuple[int, list]:
-        return extract_modifiers(dice_list)
+    def extract_modifiers(self, dice_record: DiceRecord) -> Tuple[int, DiceRecord]:
+        return extract_modifiers(dice_record)
 
-    def get_closest_from_database(self, dice_list: list) -> dt.DiceTable:
+    def get_closest_from_database(self, dice_record: DiceRecord) -> DiceTable:
+        dice_list = sorted(dice_record.get_dict().items())
         id_ = self._insert_retrieve.find_nearest_table(dice_list)
         if id_ is None:
-            return dt.DiceTable.new()
+            return DiceTable.new()
 
         return self._insert_retrieve.get_table(id_)
 
-    def get_tables_to_save(self, current_table: dt.DiceTable, dice_list: list) -> List[dt.DiceTable]:
+    def get_tables_to_save(self, current_table: DiceTable, dice_record: DiceRecord) -> List[DiceTable]:
         pass
 
-    def get_final_table(self, closest_table: dt.DiceTable, dice_list: list) -> dt.DiceTable:
+    def get_final_table(self, closest_table: DiceTable, dice_record: DiceRecord) -> DiceTable:
         pass
 
-    def apply_modifier(self, table: dt.DiceTable, modifier: int) -> dt.DiceTable:
+    def apply_modifier(self, table: DiceTable, modifier: int) -> DiceTable:
         pass
 
     def save_table_list(self, table_list: list):
@@ -51,18 +52,18 @@ class TaskManager(object):
             if not is_new_table(table) and not self._insert_retrieve.has_table(table):
                 self._insert_retrieve.add_table(table)
 
-    def process_request(self, dice_list: list) -> dt.DiceTable:
-        modifier, new_list = self.extract_modifiers(dice_list)
-        closest = self.get_closest_from_database(new_list)
+    def process_request(self, dice_record: DiceRecord) -> DiceTable:
+        modifier, new_record = self.extract_modifiers(dice_record)
+        closest = self.get_closest_from_database(new_record)
 
-        tables_to_save = self.get_tables_to_save(closest, new_list)
+        tables_to_save = self.get_tables_to_save(closest, new_record)
 
         thread = Thread(target=self.save_table_list, args=(tables_to_save,))
         thread.start()
 
-        raw_final_table = self.get_final_table(tables_to_save[-1], new_list)
+        raw_final_table = self.get_final_table(tables_to_save[-1], new_record)
         with_modifier = self.apply_modifier(raw_final_table, modifier)
-        return dt.DiceTable(with_modifier.get_dict(), dt.DiceRecord(dict(dice_list)))
+        return DiceTable(with_modifier.get_dict(), dice_record)
 
 
 def create_insert_retrieve(type_: str, db_loc: str, collection_name: str, ip='localhost', port=27017
