@@ -8,7 +8,7 @@ from dicetables_db.connections.mongodb_connection import MongoDBConnection
 from insertandretrieve import DiceTableInsertionAndRetrieval
 
 
-from tasktools import extract_modifiers, TableGenerator
+from tasktools import extract_modifiers, TableGenerator, is_new_table
 
 
 class TaskManager(object):
@@ -16,6 +16,7 @@ class TaskManager(object):
         self._insert_retrieve = insert_retrieve
         self._table_generator = None
 
+    # TODO testing convenience. out of scope
     @classmethod
     def create_for_mongo_db(cls, db_name, collection_name, ip='localhost', port=27017) -> 'TaskManager':
         db_interface = create_insert_retrieve('mongo_db', db_name, collection_name, ip, port)
@@ -31,6 +32,9 @@ class TaskManager(object):
 
     def get_closest_from_database(self, dice_list: list) -> dt.DiceTable:
         id_ = self._insert_retrieve.find_nearest_table(dice_list)
+        if id_ is None:
+            return dt.DiceTable.new()
+
         return self._insert_retrieve.get_table(id_)
 
     def get_tables_to_save(self, current_table: dt.DiceTable, dice_list: list) -> List[dt.DiceTable]:
@@ -43,7 +47,9 @@ class TaskManager(object):
         pass
 
     def save_table_list(self, table_list: list):
-        pass
+        for table in table_list:
+            if not is_new_table(table) and not self._insert_retrieve.has_table(table):
+                self._insert_retrieve.add_table(table)
 
     def process_request(self, dice_list: list) -> dt.DiceTable:
         modifier, new_list = self.extract_modifiers(dice_list)
