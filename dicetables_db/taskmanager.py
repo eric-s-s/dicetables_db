@@ -16,17 +16,6 @@ class TaskManager(object):
         self._insert_retrieve = insert_retrieve
         self._table_generator = None
 
-    # TODO testing convenience. out of scope
-    @classmethod
-    def create_for_mongo_db(cls, db_name, collection_name, ip='localhost', port=27017) -> 'TaskManager':
-        db_interface = create_insert_retrieve('mongo_db', db_name, collection_name, ip, port)
-        return cls(db_interface)
-
-    @classmethod
-    def create_for_sql(cls, db_path, collection_name) -> 'TaskManager':
-        db_interface = create_insert_retrieve('SQL', db_path, collection_name)
-        return cls(db_interface)
-
     def extract_modifiers(self, dice_record: DiceRecord) -> Tuple[int, DiceRecord]:
         return extract_modifiers(dice_record)
 
@@ -64,22 +53,3 @@ class TaskManager(object):
         raw_final_table = self.get_final_table(tables_to_save[-1], new_record)
         with_modifier = self.apply_modifier(raw_final_table, modifier)
         return DiceTable(with_modifier.get_dict(), dice_record)
-
-
-def create_insert_retrieve(type_: str, db_loc: str, collection_name: str, ip='localhost', port=27017
-                           ) -> DiceTableInsertionAndRetrieval:
-    """
-
-    :param type_: 'mongo_db', 'SQL'
-    :param db_loc: db_name and possibly path 'test_db'
-    :param collection_name: 'my_table', 'dicetables_collection'
-    :param ip: 'localhost'
-    :param port: 27017
-    :return: connection
-    """
-    conn = None
-    if type_ == 'mongo_db':
-        conn = MongoDBConnection(db_loc, collection_name, ip, port)
-    if type_ == 'SQL':
-        conn = SQLConnection(db_loc, collection_name)
-    return DiceTableInsertionAndRetrieval(conn)

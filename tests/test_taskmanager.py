@@ -2,10 +2,13 @@ from unittest import TestCase
 
 import dicetables as dt
 
-from dicetables_db.taskmanager import TaskManager, create_insert_retrieve
+from dicetables_db.taskmanager import TaskManager
+from dicetables_db.insertandretrieve import DiceTableInsertionAndRetrieval
+from dicetables_db.connections.sql_connection import SQLConnection
 
 
 class TestTaskManager(TestCase):
-    def test_place_hold(self):
-        task_manager = TaskManager.create_for_sql(':memory:', 'test_collection')
-        self.assertIsInstance(task_manager, TaskManager)
+
+    def setUp(self):
+        self.insert_retrieve = DiceTableInsertionAndRetrieval(SQLConnection(':memory:', 'test'))
+        self.task_manager = TaskManager(self.insert_retrieve)

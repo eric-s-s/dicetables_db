@@ -1,16 +1,43 @@
 from unittest import TestCase
 
-from dicetables import (DiceRecord, DiceTable, 
+from dicetables import (DiceRecord, DiceTable, DiceRecordError,
                         Die, ModDie, WeightedDie, ModWeightedDie,
                         StrongDie, Exploding, ExplodingOn, Modifier)
-from dicetables_db.tasktools import extract_modifiers, is_new_table, TableGenerator
+from dicetables_db.tasktools import extract_modifiers, is_new_table, get_die_step, TableGenerator
 
 
 class TestTaskTool(TestCase):
+    def test_get_die_step_perfect_fit(self):
+        self.assertEqual(get_die_step(Die(6), 24), 4)
+        also_six = StrongDie(ModDie(6, -1), 5)
+        self.assertEqual(get_die_step(also_six, 24), 4)
 
-    def test_place_holder(self):
-        table_generator = TableGenerator(DiceTable.new())
-        self.assertIsInstance(table_generator, TableGenerator)
+    def test_get_die_step_imperfect_fit(self):
+        self.assertEqual(get_die_step(Die(7), 24), 3)
+        also_seven = StrongDie(WeightedDie({roll: roll for roll in range(1, 8)}), 3)
+        self.assertEqual(get_die_step(also_seven, 24), 3)
+
+    def test_get_die_step_based_on_get_dict_size(self):
+        two_get_dict = WeightedDie({1: 2, 5: 9})
+        four_get_dict = ModWeightedDie({1: 2, 3: 4, 4: 5, 5: 6}, -2)
+        nine_get_dict = Exploding(Die(5), explosions=1)
+
+        self.assertEqual(two_get_dict.get_size(), four_get_dict.get_size(), nine_get_dict.get_size())
+
+        self.assertEqual(get_die_step(two_get_dict, 4), 2)
+        self.assertEqual(get_die_step(two_get_dict, 5), 2)
+
+        self.assertEqual(get_die_step(four_get_dict, 8), 2)
+        self.assertEqual(get_die_step(four_get_dict, 11), 2)
+
+        self.assertEqual(get_die_step(nine_get_dict, 18), 2)
+        self.assertEqual(get_die_step(nine_get_dict, 26), 2)
+
+    def test_get_die_step_is_always_minimum_of_one(self):
+        step_size = 4
+        self.assertEqual(get_die_step(Die(2), step_size), 2)
+        for die_size in range(3, 20):
+            self.assertEqual(get_die_step(Die(die_size), step_size), 1)
 
     def test_is_new_table(self):
         new = DiceTable.new()
@@ -18,6 +45,129 @@ class TestTaskTool(TestCase):
 
         self.assertTrue(is_new_table(new))
         self.assertFalse(is_new_table(not_new))
+
+    def test_TableGenerator_create_save_list_hits_target(self):
+        initial = DiceTable.new()
+        target = DiceRecord({Die(5): 6})
+        step_size = 10
+        save_list = TableGenerator(target).create_save_list(initial, step_size)
+        expected = [initial.add_die(Die(5), 2), initial.add_die(Die(5), 4), initial.add_die(Die(5), 6)]
+        self.assertEqual(save_list, expected)
+        self.assertEqual(save_list[-1].dice_data(), target)
+
+    def test_TableGenerator_create_save_list_does_not_hit_target(self):
+        new = DiceTable.new()
+        initial = new.add_die(Die(5))
+        self.assertEqual(initial.number_of_dice(Die(5)), 1)
+        target = DiceRecord({Die(5): 6})
+        step_size = 10
+        save_list = TableGenerator(target).create_save_list(initial, step_size)
+        expected = [new.add_die(Die(5), 3), new.add_die(Die(5), 5)]
+        self.assertEqual(save_list, expected)
+        self.assertEqual(save_list[-1].dice_data(), DiceRecord({Die(5): 5}))
+
+    def test_TableGenerator_crate_save_list_LIMITATION_initial_contains_dice_not_in_target(self):
+        initial = DiceTable.new().add_die(ModDie(5, 10))
+        target = DiceRecord({Die(5): 4})
+        step_size = 10
+        save_list = TableGenerator(target).create_save_list(initial, step_size)
+        expected = [initial.add_die(Die(5), 2), initial.add_die(Die(5), 4)]
+        self.assertEqual(save_list, expected)
+        self.assertEqual(save_list[-1].number_of_dice(Die(5)), target.get_number(Die(5)))
+        self.assertNotEqual(save_list[-1].dice_data(), target)
+
+    def test_TableGenerator_crate_save_list_LIMITATION_initial_contains_dice_higher_than_target(self):
+        initial = DiceTable.new().add_die(Die(5), 10).add_die(Die(2), 2)
+        target = DiceRecord({Die(2): 3, Die(5): 4})
+        step_size = 1
+        save_list = TableGenerator(target).create_save_list(initial, step_size)
+        expected = [initial.add_die(Die(2))]
+        self.assertEqual(save_list, expected)
+
+        self.assertEqual(save_list[-1].dice_data(), DiceRecord({Die(2): 3, Die(5): 10}))
+
+    def test_TableGenerator_create_save_list_multiple_dice_hit_target_smallest_dice_filled_first(self):
+        initial = DiceTable.new()
+        target = DiceRecord({Die(2): 4, Die(4): 2})
+        step_size = 4
+        two_d2 = initial.add_die(Die(2), 2)
+        four_d2 = two_d2.add_die(Die(2), 2)
+        four_d2_one_d4 = four_d2.add_die(Die(4))
+        four_d2_two_d4 = four_d2_one_d4.add_die(Die(4))
+
+        save_list = TableGenerator(target).create_save_list(initial, step_size)
+        expected = [two_d2, four_d2, four_d2_one_d4, four_d2_two_d4]
+
+        self.assertEqual(save_list, expected)
+        self.assertEqual(save_list[-1].dice_data(), target)
+
+    def test_TableGenerator_create_save_list_one_type_of_dice_already_at_target(self):
+        target = DiceRecord({Die(2): 4, Die(4): 2})
+        step_size = 4
+
+        initial = DiceTable.new().add_die(Die(2), 4)
+        four_d2_one_d4 = initial.add_die(Die(4))
+        four_d2_two_d4 = four_d2_one_d4.add_die(Die(4))
+        save_list = TableGenerator(target).create_save_list(initial, step_size)
+        expected = [four_d2_one_d4, four_d2_two_d4]
+
+        self.assertEqual(save_list, expected)
+        self.assertEqual(save_list[-1].dice_data(), target)
+
+    def test_TableGenerator_create_save_list_empty_return(self):
+        target = DiceRecord({Die(2): 4, Die(4): 2})
+        step_size = 4
+
+        initial = DiceTable.new().add_die(Die(2), 3).add_die(Die(4), 2)
+        self.assertEqual(TableGenerator(target).create_save_list(initial, step_size), [])
+
+    def test_TableGenerator_create_save_list_die_much_larger_than_step_size(self):
+        target = DiceRecord({Die(2): 4, Die(40): 2})
+        step_size = 4
+        initial = DiceTable.new().add_die(Die(2), 3)
+
+        expected = [initial.add_die(Die(40)), initial.add_die(Die(40), 2)]
+        save_list = TableGenerator(target).create_save_list(initial, step_size)
+
+        self.assertEqual(expected, save_list)
+        self.assertEqual(save_list[-1].dice_data(), DiceRecord({Die(2): 3, Die(40): 2}))
+
+    def test_TableGenerator_create_target_table_initial_is_target(self):
+        target = DiceRecord({Die(2): 4, Die(4): 3})
+        initial = DiceTable.new().add_die(Die(2), 4).add_die(Die(4), 3)
+
+        self.assertEqual(initial, TableGenerator(target).create_target_table(initial))
+
+    def test_TableGenerator_create_target_table_initial_is_new(self):
+        target = DiceRecord({Die(2): 4, Die(4): 3})
+        expected = DiceTable.new().add_die(Die(2), 4).add_die(Die(4), 3)
+
+        self.assertEqual(expected, TableGenerator(target).create_target_table(DiceTable.new()))
+
+    def test_TableGenerator_create_target_table_initial_is_intermediary(self):
+        target = DiceRecord({Die(2): 4, Die(4): 3})
+        initial = DiceTable.new().add_die(Die(2)).add_die(Die(4))
+        self.assertEqual(initial.dice_data(), DiceRecord({Die(2): 1, Die(4): 1}))
+
+        expected = DiceTable.new().add_die(Die(2), 4).add_die(Die(4), 3)
+
+        self.assertEqual(expected, TableGenerator(target).create_target_table(initial))
+
+    def test_TableGenerator_create_target_table_LIMITATION_initial_contains_dice_not_in_target(self):
+        target = DiceRecord({Die(2): 4, Die(4): 3})
+        initial = DiceTable.new().add_die(Die(2)).add_die(Die(5))
+        self.assertEqual(initial.dice_data(), DiceRecord({Die(2): 1, Die(5): 1}))
+
+        expected = DiceTable.new().add_die(Die(2), 4).add_die(Die(4), 3)
+
+        self.assertNotEqual(expected, TableGenerator(target).create_target_table(initial))
+
+    def test_TableGenerator_create_target_table_FAILS_when_initial_has_value_higher_than_target(self):
+        target = DiceRecord({Die(2): 4, Die(4): 3})
+        initial = DiceTable.new().add_die(Die(2)).add_die(Die(4), 5)
+        self.assertEqual(initial.dice_data(), DiceRecord({Die(2): 1, Die(4): 5}))
+
+        self.assertRaises(DiceRecordError, TableGenerator(target).create_target_table, initial)
 
     def test_extract_modifiers_no_modifiers(self):
         die = Die(6)
