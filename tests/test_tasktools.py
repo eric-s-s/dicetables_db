@@ -3,7 +3,7 @@ from unittest import TestCase
 from dicetables import (DiceRecord, DiceTable, DiceRecordError,
                         Die, ModDie, WeightedDie, ModWeightedDie,
                         StrongDie, Exploding, ExplodingOn, Modifier)
-from dicetables_db.tasktools import extract_modifiers, is_new_table, get_die_step, TableGenerator
+from dicetables_db.tasktools import extract_modifiers, apply_modifier, is_new_table, get_die_step, TableGenerator
 
 
 class TestTaskTool(TestCase):
@@ -245,3 +245,44 @@ class TestTaskTool(TestCase):
         new_dice = DiceRecord({die: 2 + 3 + 4, weighted: 5 + 6 + 7, different_die: 8, different_weighted: 9})
 
         self.assertEqual(extract_modifiers(dice), (15 + -12 + 24 + -63, new_dice))
+
+    def test_apply_modifier_zero_mod(self):
+        table = DiceTable.new().add_die(Die(2)).add_die(Die(3))
+        self.assertEqual(table.get_dict(), {2: 1, 3: 2, 4: 2, 5: 1})
+
+        no_mod = apply_modifier(table, 0)
+        self.assertEqual(no_mod.get_dict(), table.get_dict())
+        self.assertNotEqual(no_mod, table)
+        self.assertEqual(no_mod.dice_data(), DiceRecord({Die(2): 1, Die(3): 1, Modifier(0): 1}))
+
+    def test_apply_modifier_positive_mod(self):
+        table = DiceTable.new().add_die(Die(2)).add_die(Die(3))
+        self.assertEqual(table.get_dict(), {2: 1, 3: 2, 4: 2, 5: 1})
+
+        pos_mod = apply_modifier(table, 2)
+        expected_dict = {4: 1, 5: 2, 6: 2, 7: 1}
+
+        self.assertEqual(pos_mod.get_dict(), expected_dict)
+        self.assertEqual(pos_mod.dice_data(), DiceRecord({Die(2): 1, Die(3): 1, Modifier(2): 1}))
+
+    def test_apply_modifier_negative_mod(self):
+        table = DiceTable.new().add_die(Die(2)).add_die(Die(3))
+        self.assertEqual(table.get_dict(), {2: 1, 3: 2, 4: 2, 5: 1})
+
+        pos_mod = apply_modifier(table, -3)
+        expected_dict = {-1: 1, 0: 2, 1: 2, 2: 1}
+
+        self.assertEqual(pos_mod.get_dict(), expected_dict)
+        self.assertEqual(pos_mod.dice_data(), DiceRecord({Die(2): 1, Die(3): 1, Modifier(-3): 1}))
+
+    def test_apply_modifier_used_against_extract_modifier(self):
+        initial_table = DiceTable.new().add_die(ModDie(2, -1), 5).add_die(ModWeightedDie({1: 2, 3: 4}, 2), 2)
+        modifier, new_record = extract_modifiers(initial_table.dice_data())
+
+        no_mods = DiceTable.new().add_die(Die(2), 5).add_die(WeightedDie({1: 2, 3: 4}), 2)
+        self.assertEqual(no_mods.dice_data(), new_record)
+        self.assertEqual(modifier, -1)
+
+        like_initial = apply_modifier(no_mods, modifier)
+        self.assertEqual(like_initial.get_dict(), initial_table.get_dict())
+        self.assertNotEqual(like_initial.dice_data(), initial_table.dice_data())

@@ -51,6 +51,14 @@ class TestDBInterface(unittest.TestCase):
     def test_has_table_false(self):
         self.assertFalse(self.interface.has_table(dt.DiceTable.new().add_die(dt.Die(3))))
 
+    def test_has_table_table_with_no_dice_list_false(self):
+        self.assertFalse(self.interface.has_table(dt.DiceTable.new()))
+        stupid_table = dt.DiceTable({1: 2, 3: 4}, dt.DiceRecord.new())
+        self.assertFalse(self.interface.has_table(stupid_table))
+
+    def test_add_table_empty_table_raises_error(self):
+        self.assertRaises(ValueError, self.interface.add_table, dt.DiceTable.new())
+
     def test_add_table_return_document_id(self):
         doc_id = self.interface.add_table(dt.DiceTable.new().add_die(dt.Die(1)))
         document = self.connection.find_one()
@@ -64,6 +72,17 @@ class TestDBInterface(unittest.TestCase):
         expected = {'_id': doc_id, 'group': 'Die(2)', 'serialized': table_data, 'score': 2, 'Die(2)': 1}
         document = self.connection.find_one()
         self.assertEqual(document, expected)
+
+    def test_ATTENTION_add_table_can_add_same_table_twice(self):
+        table = dt.DiceTable.new().add_die(dt.Die(2))
+        doc_id_1 = self.interface.add_table(table)
+        doc_id_2 = self.interface.add_table(table)
+        table_data = Serializer.serialize(table)
+        expected_1 = {'_id': doc_id_1, 'group': 'Die(2)', 'serialized': table_data, 'score': 2, 'Die(2)': 1}
+        expected_2 = {'_id': doc_id_2, 'group': 'Die(2)', 'serialized': table_data, 'score': 2, 'Die(2)': 1}
+        documents = self.connection.find()
+        self.assertIn(expected_1, documents)
+        self.assertIn(expected_2, documents)
 
     def test_find_nearest_table_no_match(self):
         dice_list = [(dt.Die(1), 1)]

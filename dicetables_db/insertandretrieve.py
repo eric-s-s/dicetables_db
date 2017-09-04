@@ -1,6 +1,6 @@
 from typing import Optional
 
-from dicetables import DiceTable
+from dicetables import DiceTable, DiceRecord
 
 import dicetables_db.dbprep as prep
 from dicetables_db.tools.serializer import Serializer
@@ -29,6 +29,9 @@ class DiceTableInsertionAndRetrieval(object):
         self._create_required_index()
 
     def has_table(self, dice_table: DiceTable) -> bool:
+        if dice_table.dice_data() == DiceRecord.new():
+            return False
+
         finder = Finder(self._conn, dice_table.get_list())
         return finder.get_exact_match() is not None
 

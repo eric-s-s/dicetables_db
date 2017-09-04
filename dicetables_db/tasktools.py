@@ -51,6 +51,10 @@ def extract_modifiers(dice_record: DiceRecord) -> Tuple[int, DiceRecord]:
     return modifier, new_record
 
 
+def apply_modifier(initial_table: DiceTable, modifier: int) -> DiceTable:
+    return initial_table.add_die(Modifier(modifier))
+
+
 def is_new_table(table: DiceTable) -> bool:
     return table == DiceTable.new()
 
