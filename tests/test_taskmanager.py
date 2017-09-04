@@ -1,19 +1,29 @@
-from threading import active_count
-from unittest import TestCase
+import unittest
 
-from dicetables import DiceTable, Die, DiceRecord
+from time import clock
+
+from dicetables import (DiceTable, DiceRecord, Modifier, Die, ModDie, WeightedDie, ModWeightedDie,
+                        StrongDie, Exploding, ExplodingOn)
 
 from dicetables_db.taskmanager import TaskManager
 from dicetables_db.insertandretrieve import DiceTableInsertionAndRetrieval
 from dicetables_db.connections.sql_connection import SQLConnection
 
 
-class TestTaskManager(TestCase):
+class TestTaskManager(unittest.TestCase):
 
     def setUp(self):
         self.connection = SQLConnection(':memory:', 'test')
         self.insert_retrieve = DiceTableInsertionAndRetrieval(self.connection)
         self.task_manager = TaskManager(self.insert_retrieve)
+
+    def test_init(self):
+        manager = TaskManager(self.insert_retrieve)
+        self.assertEqual(manager.step_size, 30)
+
+        manager = TaskManager(self.insert_retrieve, 40)
+        self.assertEqual(manager.step_size, 40)
+        self.assertIs(manager._insert_retrieve, self.insert_retrieve)
 
     def test_get_closest_from_database_no_matches_in_database(self):
         table = DiceTable.new().add_die(Die(10))
@@ -99,11 +109,157 @@ class TestTaskManager(TestCase):
         for table in to_save:
             self.assertTrue(self.insert_retrieve.has_table(table))
 
-    def test_process_request_threading(self):
-        big_request = DiceRecord({Die(6): 500})
-        answer = self.task_manager.process_request(big_request)
-        for _ in range(5):
-            print(active_count())
+    def test_process_request_returns_correct_table_too_small_to_save(self):
+        request = DiceRecord({Die(5): 2, Die(3): 2})
+        answer = self.task_manager.process_request(request)
+        expected = DiceTable.new().add_die(Die(5), 2).add_die(Die(3), 2)
 
-        #  TODO threading issue with sqlite. connection created in main thread cannot be accessed in other thread.
-        #  TODO perhaps no threading.
+        self.assertEqual(answer, expected)
+        self.assertEqual(self.connection.find(), [])
+
+    def test_process_request_returns_correct_table_partly_too_small_to_save(self):
+        request = DiceRecord({Die(5): 2, Die(3): 50})
+        answer = self.task_manager.process_request(request)
+        expected = DiceTable.new().add_die(Die(5), 2).add_die(Die(3), 50)
+
+        self.assertEqual(answer, expected)
+
+    def test_process_request_returns_correct_table_intermediate_is_exact(self):
+        request = DiceRecord({Die(5): 6, Die(3): 50})
+        answer = self.task_manager.process_request(request)
+        expected = DiceTable.new().add_die(Die(5), 6).add_die(Die(3), 50)
+
+        self.assertEqual(answer, expected)
+        self.assertTrue(self.insert_retrieve.has_table(answer))
+
+    def test_process_request_saves_intermediary_tables(self):
+        request = DiceRecord({Die(3): 20, Die(5): 12})
+        answer = self.task_manager.process_request(request)
+
+        self.assertTrue(self.task_manager.step_size, 30)
+
+        saved = [DiceTable.new().add_die(Die(3), 10),
+                 DiceTable.new().add_die(Die(3), 20),
+                 DiceTable.new().add_die(Die(3), 20).add_die(Die(5), 6),
+                 DiceTable.new().add_die(Die(3), 20).add_die(Die(5), 12)]
+
+        for table in saved:
+            self.assertTrue(self.insert_retrieve.has_table(table))
+        self.assertEqual(len(self.connection.find()), 4)
+
+        self.assertEqual(answer, saved[-1])
+
+    def test_process_request_returns_correct_table_with_modifiers(self):
+        modifier = Modifier(10)
+        mod_die = ModDie(5, 2)
+        mod_weighted = ModWeightedDie({1: 2, 3: 4}, -2)
+
+        request = DiceRecord({modifier: 6, mod_die: 2, mod_weighted: 3})
+        answer = self.task_manager.process_request(request)
+
+        expected = DiceTable.new().add_die(modifier, 6).add_die(mod_die, 2).add_die(mod_weighted, 3)
+
+        self.assertEqual(answer, expected)
+
+    def test_process_request_saves_intermediary_tables_without_their_modifiers(self):
+        modifier = Modifier(10)
+        mod_die = ModDie(5, 2)
+        mod_weighted = ModWeightedDie({1: 2, 2: 5, 3: 4}, -2)
+
+        die = Die(5)
+        weighted = WeightedDie({1: 2, 2: 5, 3: 4})
+
+        request = DiceRecord({modifier: 6, mod_die: 12, mod_weighted: 20})
+        self.task_manager.process_request(request)
+
+        self.assertTrue(self.task_manager.step_size, 30)
+
+        saved = [DiceTable.new().add_die(weighted, 10),
+                 DiceTable.new().add_die(weighted, 20),
+                 DiceTable.new().add_die(weighted, 20).add_die(die, 6),
+                 DiceTable.new().add_die(weighted, 20).add_die(die, 12)]
+
+        for table in saved:
+            self.assertTrue(self.insert_retrieve.has_table(table))
+        self.assertEqual(len(self.connection.find()), 4)
+
+    def test_process_request_does_not_save_same_table_twice_and_retrieves_from_database(self):
+        big_request_one = DiceRecord({Die(6): 500})
+        big_request_two = DiceRecord({ModDie(6, 5): 500})
+
+        start = clock()
+        self.task_manager.process_request(big_request_one)
+        first_request_time = clock() - start
+
+        number_of_saved_tables = len(self.connection.find())
+
+        start = clock()
+        self.task_manager.process_request(big_request_two)
+        second_request_time = clock() - start
+
+        self.assertEqual(len(self.connection.find()), number_of_saved_tables)
+
+        self.assertTrue(first_request_time > 10 * second_request_time)
+
+    def test_process_request_all_die_types_below_step_size(self):
+        weighted_dict = {1: 2, 3: 4}
+
+        modifier = Modifier(5)
+        die = Die(5)
+        mod_die = ModDie(5, -10)
+        weighted = WeightedDie(weighted_dict)
+        mod_weighted = ModWeightedDie(weighted_dict, 4)
+        strong = StrongDie(die, 2)
+        exploding = Exploding(die, explosions=1)
+        exploding_on = ExplodingOn(die, (1,), explosions=1)
+
+        request = DiceRecord({modifier: 1, die: 1, mod_die: 1, weighted: 1, mod_weighted: 1,
+                              strong: 1, exploding: 1, exploding_on: 1})
+        expected = DiceTable.new().add_die(modifier).add_die(die).add_die(mod_die).add_die(weighted)
+        expected = expected.add_die(mod_weighted).add_die(strong).add_die(exploding).add_die(exploding_on)
+
+        answer = self.task_manager.process_request(request)
+
+        self.assertEqual(expected, answer)
+        self.assertEqual(self.connection.find(), [])
+
+    def test_process_request_all_die_types_above_step_size_and_gets_from_database(self):
+        weighted_dict = {1: 2, 3: 4}
+
+        modifier = Modifier(5)
+        die = Die(5)
+        mod_die = ModDie(5, -10)
+        weighted = WeightedDie(weighted_dict)
+        mod_weighted = ModWeightedDie(weighted_dict, 4)
+        strong = StrongDie(die, 2)
+        exploding = Exploding(die, explosions=1)
+        exploding_on = ExplodingOn(die, (1,), explosions=1)
+
+        request = DiceRecord({modifier: 10, die: 10, mod_die: 10, weighted: 10, mod_weighted: 10,
+                              strong: 10, exploding: 10, exploding_on: 10})
+
+        expected = DiceTable.new().add_die(modifier, 10).add_die(die, 10).add_die(mod_die, 10).add_die(weighted, 10)
+        expected = expected.add_die(mod_weighted, 10).add_die(strong, 10)
+        expected = expected.add_die(exploding, 10).add_die(exploding_on, 10)
+
+        one_step = TaskManager(self.insert_retrieve, step_size=1)
+
+        start = clock()
+        initial_answer = one_step.process_request(request)
+        with_save = clock() - start
+
+        initial_db_size = len(self.connection.find())
+
+        start = clock()
+        second_answer = one_step.process_request(request)
+        without_save = clock() - start
+
+        second_db_size = len(self.connection.find())
+
+        self.assertEqual(expected, initial_answer, second_answer)
+        self.assertEqual(initial_db_size, second_db_size, 70)
+        self.assertTrue(with_save > 5 * without_save)
+
+
+if __name__ == '__main__':
+    unittest.main()

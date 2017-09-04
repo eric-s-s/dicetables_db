@@ -1,17 +1,19 @@
-from threading import Thread
 
-from dicetables import DiceRecord, DiceTable
+from dicetables import DiceRecord, DiceTable, Die
 
-from insertandretrieve import DiceTableInsertionAndRetrieval
-
-
-from tasktools import TableGenerator, is_new_table, extract_modifiers, apply_modifier
+from dicetables_db.insertandretrieve import DiceTableInsertionAndRetrieval
+from dicetables_db.tasktools import TableGenerator, is_new_table, extract_modifiers, apply_modifier
 
 
 class TaskManager(object):
-    def __init__(self, insert_retrieve: DiceTableInsertionAndRetrieval) -> None:
+    def __init__(self, insert_retrieve: DiceTableInsertionAndRetrieval, step_size=30) -> None:
         self._insert_retrieve = insert_retrieve
-        self.step_size = 30
+        self._step_size = step_size
+        self.save_queue = []
+
+    @property
+    def step_size(self):
+        return self._step_size
 
     def get_closest_from_database(self, dice_record: DiceRecord) -> DiceTable:
         dice_list = sorted(dice_record.get_dict().items())
@@ -27,16 +29,22 @@ class TaskManager(object):
                 self._insert_retrieve.add_table(table)
 
     def process_request(self, dice_record: DiceRecord) -> DiceTable:
+
         modifier, new_record = extract_modifiers(dice_record)
+
         closest = self.get_closest_from_database(new_record)
 
         table_generator = TableGenerator(new_record)
         tables_to_save = table_generator.create_save_list(closest, self.step_size)
 
-        thread = Thread(target=self.save_table_list, args=(tables_to_save,))
-        thread.start()
+        if not tables_to_save:
+            intermediate_table = closest
+        else:
+            intermediate_table = tables_to_save[-1]
 
-        raw_final_table = table_generator.create_target_table(tables_to_save[-1])
+        self.save_table_list(tables_to_save)
+
+        raw_final_table = table_generator.create_target_table(intermediate_table)
         table_with_modifier = apply_modifier(raw_final_table, modifier)
 
         answer = DiceTable(table_with_modifier.get_dict(), dice_record)

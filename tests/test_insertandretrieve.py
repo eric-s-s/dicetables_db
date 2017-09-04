@@ -2,7 +2,7 @@ import unittest
 
 import dicetables as dt
 
-import dicetables_db.insertandretrieve as dbi
+from dicetables_db.insertandretrieve import DiceTableInsertionAndRetrieval, Finder
 from dicetables_db.dbprep import Serializer
 from dicetables_db.connections.sql_connection import SQLConnection
 from tests.connections.test_baseconnection import MockConnection
@@ -16,7 +16,7 @@ class TestDBInterface(unittest.TestCase):
 
     def setUp(self):
         self.connection = self.get_connection()
-        self.interface = dbi.DiceTableInsertionAndRetrieval(self.connection)
+        self.interface = DiceTableInsertionAndRetrieval(self.connection)
         self.interface.reset()
 
     def tearDown(self):
@@ -28,7 +28,7 @@ class TestDBInterface(unittest.TestCase):
     def test_init_creates_index(self):
         new_conn = SQLConnection(':memory:', 'another_collection')
         self.assertEqual(new_conn.get_info()['indices'], [])
-        dbi.DiceTableInsertionAndRetrieval(new_conn)
+        DiceTableInsertionAndRetrieval(new_conn)
 
         self.assertEqual(new_conn.get_info()['indices'], [('group', 'score')])
 
@@ -60,10 +60,10 @@ class TestDBInterface(unittest.TestCase):
         self.assertRaises(ValueError, self.interface.add_table, dt.DiceTable.new())
 
     def test_add_table_return_document_id(self):
-        doc_id = self.interface.add_table(dt.DiceTable.new().add_die(dt.Die(1)))
+        doc_id_from_insert = self.interface.add_table(dt.DiceTable.new().add_die(dt.Die(1)))
         document = self.connection.find_one()
-        doc_id = document['_id']
-        self.assertEqual(doc_id, doc_id)
+        doc_id_from_find = document['_id']
+        self.assertEqual(doc_id_from_insert, doc_id_from_find)
 
     def test_add_table_adds_correctly(self):
         table = dt.DiceTable.new().add_die(dt.Die(2))
@@ -126,28 +126,28 @@ class TestDBInterface(unittest.TestCase):
         self.assertEqual(new_table, table)
 
     def test_Finder_get_exact_match_returns_None(self):
-        finder = dbi.Finder(self.connection, [(dt.Die(2), 1)])
+        finder = Finder(self.connection, [(dt.Die(2), 1)])
         self.assertIsNone(finder.get_exact_match())
 
     def test_Finder_get_exact_match_returns_correct_id(self):
-        finder = dbi.Finder(self.connection, [(dt.Die(2), 1)])
+        finder = Finder(self.connection, [(dt.Die(2), 1)])
         doc_id = self.interface.add_table(dt.DiceTable.new().add_die(dt.Die(2)))
         self.assertEqual(finder.get_exact_match(), doc_id)
 
     def test_Finder_find_nearest_table_no_match(self):
         dice_list = [(dt.Die(1), 1)]
-        finder = dbi.Finder(self.connection, dice_list)
+        finder = Finder(self.connection, dice_list)
         self.assertIsNone(finder.find_nearest_table())
 
     def test_Finder_find_nearest_table_perfect_match_one_die(self):
         dice_table = dt.DiceTable.new().add_die(dt.Die(2))
         doc_id = self.interface.add_table(dice_table)
-        finder = dbi.Finder(self.connection, dice_table.get_list())
+        finder = Finder(self.connection, dice_table.get_list())
         self.assertEqual(finder.find_nearest_table(), doc_id)
 
     def test_Finder_find_nearest_table_perfect_match_multi_die(self):
         exact_match = dt.DiceTable.new().add_die(dt.Die(2)).add_die(dt.Die(3)).add_die(dt.Die(4))
-        finder = dbi.Finder(self.connection, exact_match.get_list())
+        finder = Finder(self.connection, exact_match.get_list())
 
         same_score_not_it = dt.DiceTable.new().add_die(dt.Die(2), 2).add_die(dt.Die(3))
         self.interface.add_table(dt.DiceTable.new().add_die(dt.Die(2)))
@@ -162,8 +162,8 @@ class TestDBInterface(unittest.TestCase):
         test_list0 = dice_table0.add_die(dt.Die(10)).get_list()
         test_list1 = dice_table1.add_die(dt.Die(2)).get_list()
 
-        finder0 = dbi.Finder(self.connection, test_list0)
-        finder1 = dbi.Finder(self.connection, test_list1)
+        finder0 = Finder(self.connection, test_list0)
+        finder1 = Finder(self.connection, test_list1)
 
         dice_table0_id = self.interface.add_table(dice_table0)
         dice_table1_id = self.interface.add_table(dice_table1)
@@ -176,7 +176,7 @@ class TestDBInterface(unittest.TestCase):
         dice_table1 = dt.DiceTable.new().add_die(dt.Die(2)).add_die(dt.Die(3)).add_die(dt.Die(4), 2)
         test_list1 = [(dt.Die(2), 1), (dt.Die(3), 2), (dt.Die(4), 10), (dt.Die(10), 100)]
 
-        finder1 = dbi.Finder(self.connection, test_list1)
+        finder1 = Finder(self.connection, test_list1)
 
         self.interface.add_table(dice_table0)
         dice_table1_id = self.interface.add_table(dice_table1)
