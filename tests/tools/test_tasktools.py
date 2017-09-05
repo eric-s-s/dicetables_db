@@ -1,9 +1,11 @@
+from queue import Queue
 from unittest import TestCase
 
 from dicetables import (DiceRecord, DiceTable, DiceRecordError,
                         Die, ModDie, WeightedDie, ModWeightedDie,
                         StrongDie, Exploding, ExplodingOn, Modifier)
-from dicetables_db.tasktools import extract_modifiers, apply_modifier, is_new_table, get_die_step, TableGenerator
+
+from dicetables_db.tools.tasktools import extract_modifiers, apply_modifier, is_new_table, get_die_step, TableGenerator
 
 
 class TestTaskTool(TestCase):
@@ -45,6 +47,19 @@ class TestTaskTool(TestCase):
 
         self.assertTrue(is_new_table(new))
         self.assertFalse(is_new_table(not_new))
+
+    def test_TableGenerator_empty_record(self):
+        table_generator = TableGenerator(DiceRecord.new())
+
+        initial_table = DiceTable.new()
+        q = Queue()
+
+        self.assertEqual(table_generator.create_save_list(initial_table, 20), [])
+
+        table_generator.create_save_list(initial_table, 20, q)
+        self.assertEqual(q.get(), 'STOP')
+
+        self.assertEqual(table_generator.create_target_table(initial_table), DiceTable.new())
 
     def test_TableGenerator_create_save_list_hits_target(self):
         initial = DiceTable.new()
@@ -131,6 +146,30 @@ class TestTaskTool(TestCase):
 
         self.assertEqual(expected, save_list)
         self.assertEqual(save_list[-1].dice_data(), DiceRecord({Die(2): 3, Die(40): 2}))
+
+    def test_TableGenerator_create_save_list_with_queue_empty_return(self):
+        q = Queue()
+        target = DiceRecord({Die(6): 11})
+        initial = DiceTable.new().add_die(Die(6), 10)
+
+        TableGenerator(target).create_save_list(initial, 30, q)
+
+        self.assertEqual(q.get(), 'STOP')
+
+    def test_TableGenerator_create_save_list_with_queue(self):
+        q = Queue()
+        target = DiceRecord({Die(6): 8})
+        initial = DiceTable.new().add_die(Die(6), 5)
+
+        TableGenerator(target).create_save_list(initial, 1, q)
+
+        expected = ['<DiceTable containing [6D6]>', '<DiceTable containing [7D6]>', '<DiceTable containing [8D6]>']
+        for repr_str in expected:
+            value = q.get()
+            self.assertEqual(value, repr_str)
+
+        self.assertEqual(q.get(), 'STOP')
+
 
     def test_TableGenerator_create_target_table_initial_is_target(self):
         target = DiceRecord({Die(2): 4, Die(4): 3})

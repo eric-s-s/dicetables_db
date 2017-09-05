@@ -2,7 +2,7 @@ import unittest
 
 import dicetables as dt
 
-import dicetables_db.dbprep as prep
+import dicetables_db.tools.dbprep as prep
 from dicetables_db.tools.serializer import Serializer
 
 

@@ -1,8 +1,9 @@
+from queue import Queue
 
-from dicetables import DiceRecord, DiceTable, Die
+from dicetables import DiceRecord, DiceTable
 
+from dicetables_db.tools.tasktools import TableGenerator, is_new_table, extract_modifiers, apply_modifier
 from dicetables_db.insertandretrieve import DiceTableInsertionAndRetrieval
-from dicetables_db.tasktools import TableGenerator, is_new_table, extract_modifiers, apply_modifier
 
 
 class TaskManager(object):
@@ -28,14 +29,17 @@ class TaskManager(object):
             if not is_new_table(table) and not self._insert_retrieve.has_table(table):
                 self._insert_retrieve.add_table(table)
 
-    def process_request(self, dice_record: DiceRecord) -> DiceTable:
+    def process_request(self, dice_record: DiceRecord, updater_queue: Queue = None) -> DiceTable:
 
         modifier, new_record = extract_modifiers(dice_record)
 
-        closest = self.get_closest_from_database(new_record)
+        if new_record == DiceRecord.new():
+            closest = DiceTable.new()
+        else:
+            closest = self.get_closest_from_database(new_record)
 
         table_generator = TableGenerator(new_record)
-        tables_to_save = table_generator.create_save_list(closest, self.step_size)
+        tables_to_save = table_generator.create_save_list(closest, self.step_size, updater_queue)
 
         if not tables_to_save:
             intermediate_table = closest

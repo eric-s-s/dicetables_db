@@ -1,13 +1,13 @@
 import unittest
-
+from queue import Queue
 from time import clock
 
 from dicetables import (DiceTable, DiceRecord, Modifier, Die, ModDie, WeightedDie, ModWeightedDie,
                         StrongDie, Exploding, ExplodingOn)
 
+from dicetables_db.connections.sql_connection import SQLConnection
 from dicetables_db.taskmanager import TaskManager
 from dicetables_db.insertandretrieve import DiceTableInsertionAndRetrieval
-from dicetables_db.connections.sql_connection import SQLConnection
 
 
 class TestTaskManager(unittest.TestCase):
@@ -109,6 +109,13 @@ class TestTaskManager(unittest.TestCase):
         for table in to_save:
             self.assertTrue(self.insert_retrieve.has_table(table))
 
+    def test_process_request_empty_record(self):
+        q = Queue()
+        request = DiceRecord.new()
+        answer = self.task_manager.process_request(request, q)
+        self.assertEqual(answer, DiceTable.new())
+        self.assertEqual(q.get(), 'STOP')
+
     def test_process_request_returns_correct_table_too_small_to_save(self):
         request = DiceRecord({Die(5): 2, Die(3): 2})
         answer = self.task_manager.process_request(request)
@@ -183,7 +190,7 @@ class TestTaskManager(unittest.TestCase):
             self.assertTrue(self.insert_retrieve.has_table(table))
         self.assertEqual(len(self.connection.find()), 4)
 
-    def test_process_request_does_not_save_same_table_twice_and_retrieves_from_database(self):
+    def test_process_request_regression_test_check_times(self):
         big_request_one = DiceRecord({Die(6): 500})
         big_request_two = DiceRecord({ModDie(6, 5): 500})
 
@@ -223,6 +230,60 @@ class TestTaskManager(unittest.TestCase):
         self.assertEqual(expected, answer)
         self.assertEqual(self.connection.find(), [])
 
+    def test_process_request_with_queue_no_tables_saved(self):
+        q = Queue()
+        request = DiceRecord({Die(6): 4})
+        answer = self.task_manager.process_request(request, updater_queue=q)
+
+        self.assertEqual(answer, DiceTable.new().add_die(Die(6), 4))
+
+        self.assertEqual(q.get(), 'STOP')
+
+    def test_process_request_with_queue(self):
+        q = Queue()
+        request = DiceRecord({Die(6): 20})
+        answer = self.task_manager.process_request(request, updater_queue=q)
+
+        self.assertEqual(answer, DiceTable.new().add_die(Die(6), 20))
+
+        expected_reprs = ['<DiceTable containing [5D6]>', '<DiceTable containing [10D6]>',
+                          '<DiceTable containing [15D6]>', '<DiceTable containing [20D6]>', ]
+        for table_repr in expected_reprs:
+            self.assertEqual(q.get(), table_repr)
+        self.assertEqual(q.get(), 'STOP')
+
+    def test_process_request_with_queue_no_tables_saved_because_already_saved(self):
+        initial_queue = Queue()
+        request = DiceRecord({Die(6): 10})
+        answer = self.task_manager.process_request(request, updater_queue=initial_queue)
+        expected = DiceTable.new().add_die(Die(6), 10)
+
+        self.assertEqual(answer, expected)
+
+        expected_reprs = ['<DiceTable containing [5D6]>', '<DiceTable containing [10D6]>']
+        for table_repr in expected_reprs:
+            self.assertEqual(initial_queue.get(), table_repr)
+        self.assertEqual(initial_queue.get(), 'STOP')
+
+        second_queue = Queue()
+        second_answer = self.task_manager.process_request(request, updater_queue=second_queue)
+
+        self.assertEqual(second_queue.get(), 'STOP')
+        self.assertEqual(second_answer, expected)
+
+    def test_process_request_each_die_type(self):
+        all_dice = [Modifier(3), Die(3), ModDie(3, -1), WeightedDie({1: 2, 2: 1}), ModWeightedDie({1: 2, 2: 1}, 4),
+                    StrongDie(Die(3), 3), Exploding(Die(3), explosions=1), ExplodingOn(Die(3), (1, ), explosions=1)]
+
+        add_times = 2
+        one_step = TaskManager(self.insert_retrieve, step_size=1)
+
+        for die in all_dice:
+            request = DiceRecord.new().add_die(die, add_times)
+            answer = one_step.process_request(request)
+            expected = DiceTable.new().add_die(die, add_times)
+            self.assertEqual(answer, expected)
+
     def test_process_request_all_die_types_above_step_size_and_gets_from_database(self):
         weighted_dict = {1: 2, 3: 4}
 
@@ -244,21 +305,21 @@ class TestTaskManager(unittest.TestCase):
 
         one_step = TaskManager(self.insert_retrieve, step_size=1)
 
-        start = clock()
-        initial_answer = one_step.process_request(request)
-        with_save = clock() - start
+        initial_queue = Queue()
+        initial_answer = one_step.process_request(request, initial_queue)
 
         initial_db_size = len(self.connection.find())
 
-        start = clock()
-        second_answer = one_step.process_request(request)
-        without_save = clock() - start
+        second_queue = Queue()
+        second_answer = one_step.process_request(request, second_queue)
 
         second_db_size = len(self.connection.find())
 
         self.assertEqual(expected, initial_answer, second_answer)
         self.assertEqual(initial_db_size, second_db_size, 70)
-        self.assertTrue(with_save > 5 * without_save)
+
+        self.assertEqual(initial_queue.qsize(), 71)
+        self.assertEqual(second_queue.qsize(), 1)
 
 
 if __name__ == '__main__':

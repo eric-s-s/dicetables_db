@@ -2,10 +2,10 @@ from typing import Optional
 
 from dicetables import DiceTable, DiceRecord
 
-import dicetables_db.dbprep as prep
-from dicetables_db.tools.serializer import Serializer
 from dicetables_db.connections.baseconnection import BaseConnection
 from dicetables_db.tools.documentid import DocumentId
+from dicetables_db.tools.serializer import Serializer
+from dicetables_db.tools.dbprep import PrepDiceTable, SearchParams
 
 
 class DiceTableInsertionAndRetrieval(object):
@@ -36,7 +36,7 @@ class DiceTableInsertionAndRetrieval(object):
         return finder.get_exact_match() is not None
 
     def add_table(self, dice_table: DiceTable) -> DocumentId:
-        adder = prep.PrepDiceTable(dice_table)
+        adder = PrepDiceTable(dice_table)
         doc_id = self._conn.insert(adder.get_dict())
         return doc_id
 
@@ -59,7 +59,7 @@ class Finder(object):
 
     def __init__(self, connection: BaseConnection, dice_list: list) -> None:
         self._conn = connection
-        self._param_maker = prep.SearchParams(dice_list)
+        self._param_maker = SearchParams(dice_list)
         self._param_score = self._param_maker.get_score()
 
         self._doc_id = None  # type: DocumentId

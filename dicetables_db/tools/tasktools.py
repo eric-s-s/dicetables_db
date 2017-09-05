@@ -1,3 +1,4 @@
+from queue import Queue
 from typing import Tuple, List
 
 from dicetables import DiceTable, DiceRecord, Modifier, ModDie, ModWeightedDie, Die, WeightedDie
@@ -8,20 +9,23 @@ class TableGenerator(object):
     def __init__(self, target_record: DiceRecord) -> None:
         self._target = target_record
 
-    def create_save_list(self, initial_table: DiceTable, step_size: int) -> List[DiceTable]:
+    def create_save_list(self, initial_table: DiceTable, step_size: int, update_queue: Queue = None) -> List[DiceTable]:
         saves = []
         newest_table = initial_table
         ordered_list = sorted(self._target.get_dict().items())
-        for die, num in ordered_list:
+        for die, target_num in ordered_list:
             die_step = get_die_step(die, step_size)
             current_die_number = newest_table.number_of_dice(die)
-            target_die_number = self._target.get_number(die)
 
-            add_times = (target_die_number - current_die_number) // die_step
+            add_times = (target_num - current_die_number) // die_step
             for _ in range(add_times):
                 newest_table = newest_table.add_die(die, die_step)
                 saves.append(newest_table)
+                if update_queue is not None:
+                    update_queue.put(repr(newest_table))
 
+        if update_queue is not None:
+            update_queue.put('STOP')
         return saves
 
     def create_target_table(self, initial_table: DiceTable) -> DiceTable:

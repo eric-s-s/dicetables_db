@@ -2,11 +2,11 @@ import unittest
 
 import dicetables as dt
 
-from dicetables_db.insertandretrieve import DiceTableInsertionAndRetrieval, Finder
-from dicetables_db.dbprep import Serializer
-from dicetables_db.connections.sql_connection import SQLConnection
-from tests.connections.test_baseconnection import MockConnection
 from dicetables_db.connections.mongodb_connection import MongoDBConnection
+from dicetables_db.connections.sql_connection import SQLConnection
+from dicetables_db.insertandretrieve import DiceTableInsertionAndRetrieval, Finder
+from tests.connections.test_baseconnection import MockConnection
+from dicetables_db.tools.dbprep import Serializer
 
 
 class TestDBInterface(unittest.TestCase):
