@@ -20,7 +20,9 @@ class MongoDBConnection(BaseConnection):
             'db': self._db.name,
             'collections': self._db.collection_names(),
             'current_collection': self._collection.name,
-            'indices': indices
+            'indices': indices,
+            'ip': self._params_storage[2],
+            'port': self._params_storage[3]
         }
         return info
 

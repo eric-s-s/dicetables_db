@@ -24,7 +24,9 @@ class TestNew(tbc.TestBaseConnection):
             'db': 'test_db',
             'collections': [],
             'current_collection': 'test',
-            'indices': []
+            'indices': [],
+            'ip': 'localhost',
+            'port': '27017'
         }
         self.assertEqual(self.connection.get_info(), expected)
 
@@ -33,7 +35,9 @@ class TestNew(tbc.TestBaseConnection):
             'db': 'test_db',
             'collections': ['bob'],
             'current_collection': 'bob',
-            'indices': [('foo',), ('foo', 'bar')]
+            'indices': [('foo',), ('foo', 'bar')],
+            'ip': 'localhost',
+            'port': '27017'
         }
         new_connection = self.new_connection('bob')
         new_connection.create_index(('foo',))

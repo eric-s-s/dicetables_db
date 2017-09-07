@@ -25,7 +25,7 @@ def write_numbers_for_connection_tests():
     write_lines('test_baseconnection.py', with_numbers)
 
     for file_name in os.listdir('connections'):
-        if file_name != 'test_baseconnestion.py':
+        if file_name != 'test_baseconnestion.py' and file_name != '__pycache__':
             copy_numbered_names(file_name, no_numbers, with_numbers)
 
 
