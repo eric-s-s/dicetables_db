@@ -30,14 +30,14 @@ class RequestHandler(object):
     def request_dice_table_construction(self, instructions: str,
                                         num_delimiter: str = '*', pairs_delimiter: str = '&') -> None:
 
-        reserved_characters = '[]{}(),: -=' + string.digits + string.ascii_letters
+        reserved_characters = '_[]{}(),: -=\x0b\x0c' + string.digits + string.ascii_letters
         if num_delimiter in reserved_characters or pairs_delimiter in reserved_characters:
-            raise ValueError('delimiters may not be {}'.format(reserved_characters))
+            raise ValueError('Delimiters may not be {!r}'.format(reserved_characters))
 
         record = DiceRecord.new()
         number_die_pairs = instructions.split(pairs_delimiter)
         for pair in number_die_pairs:
-            if '*' not in pair:
+            if num_delimiter not in pair:
                 number = 1
                 die = pair
             else:
