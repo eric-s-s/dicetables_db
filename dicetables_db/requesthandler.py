@@ -16,7 +16,6 @@ class RequestHandler(object):
         self._conn = connection
         self._task_manager = TaskManager(DiceTableInsertionAndRetrieval(self._conn))
         self._table = DiceTable.new()
-        self._calc = EventsCalculations(self._table)
         self._parser = Parser(ignore_case=True)
 
     @classmethod
@@ -47,10 +46,7 @@ class RequestHandler(object):
             record = record.add_die(die, number)
 
         self._table = self._task_manager.process_request(record)
-        self._calc = EventsCalculations(self._table)
 
     def get_table(self):
         return self._table
 
-    def get_table_str(self):
-        return self._calc.full_table_string()

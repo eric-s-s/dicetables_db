@@ -49,6 +49,13 @@ function setUpHiddenForms(containerJQuery, classJQuery) {
 function getTable(tableForm) {
     var index = tableForm.tableQuery.value % fakeList.length;
     $('#' + tableForm.id).data('tableObj', fakeList[index]);
+
+    $.getJSON('/_add_numbers', {
+        a: tableForm.tableQuery.value
+      }, function(data) {
+        console.log(data);
+      });
+
     plotCurrentTables();
 }
 
