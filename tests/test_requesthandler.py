@@ -1,7 +1,8 @@
+from queue import Queue
 from string import printable
 import unittest
 
-from dicetables import (DiceRecord, DiceTable, EventsCalculations, Parser, ParseError, LimitsError, InvalidEventsError,
+from dicetables import (DiceTable, Parser, ParseError, LimitsError, InvalidEventsError,
                         Die, ModDie, WeightedDie, ModWeightedDie, StrongDie, Exploding, ExplodingOn, Modifier)
 from dicetables_db.requesthandler import RequestHandler
 from dicetables_db.connections.mongodb_connection import MongoDBConnection
@@ -21,7 +22,6 @@ class TestRequestHandler(unittest.TestCase):
         self.assertEqual(conn.get_info()['db'], ':memory:')
 
     def test_using_mongo_db(self):
-        "connecting is slow."
         handler = RequestHandler.using_mongo_db('test_db', 'test', port=27017)
         self.assertIsInstance(handler, RequestHandler)
         conn = handler._conn
@@ -149,3 +149,22 @@ class TestRequestHandler(unittest.TestCase):
                         'WeightedDie({1: -1})']
         for instruction in instructions:
             self.assertRaises(errors, self.handler.request_dice_table_construction, instruction)
+
+    def test_request_dice_table_construction_with_update_queue(self):
+        q = Queue()
+        self.handler.request_dice_table_construction('20*Die(6)', q)
+        expected = ['<DiceTable containing [5D6]>', '<DiceTable containing [10D6]>', '<DiceTable containing [15D6]>',
+                    '<DiceTable containing [20D6]>']
+        for value in expected:
+            self.assertEqual(value, q.get())
+        self.assertEqual(q.get(), 'STOP')
+
+    def test_close_connection(self):
+        self.handler.close_connection()
+        self.assertRaises(AttributeError, self.handler.request_dice_table_construction, '1*Die(6)')
+
+    def test_make_dict(self):
+        raise NotImplementedError
+
+    def test_get_response(self):
+        raise NotImplementedError

@@ -10,7 +10,6 @@ class TaskManager(object):
     def __init__(self, insert_retrieve: DiceTableInsertionAndRetrieval, step_size=30) -> None:
         self._insert_retrieve = insert_retrieve
         self._step_size = step_size
-        self.save_queue = []
 
     @property
     def step_size(self):
@@ -29,7 +28,7 @@ class TaskManager(object):
             if not is_new_table(table) and not self._insert_retrieve.has_table(table):
                 self._insert_retrieve.add_table(table)
 
-    def process_request(self, dice_record: DiceRecord, updater_queue: Queue = None) -> DiceTable:
+    def process_request(self, dice_record: DiceRecord, update_queue: Queue = None) -> DiceTable:
 
         modifier, new_record = extract_modifiers(dice_record)
 
@@ -39,7 +38,7 @@ class TaskManager(object):
             closest = self.get_closest_from_database(new_record)
 
         table_generator = TableGenerator(new_record)
-        tables_to_save = table_generator.create_save_list(closest, self.step_size, updater_queue)
+        tables_to_save = table_generator.create_save_list(closest, self.step_size, update_queue)
 
         if not tables_to_save:
             intermediate_table = closest

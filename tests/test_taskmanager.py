@@ -233,7 +233,7 @@ class TestTaskManager(unittest.TestCase):
     def test_process_request_with_queue_no_tables_saved(self):
         q = Queue()
         request = DiceRecord({Die(6): 4})
-        answer = self.task_manager.process_request(request, updater_queue=q)
+        answer = self.task_manager.process_request(request, update_queue=q)
 
         self.assertEqual(answer, DiceTable.new().add_die(Die(6), 4))
 
@@ -242,7 +242,7 @@ class TestTaskManager(unittest.TestCase):
     def test_process_request_with_queue(self):
         q = Queue()
         request = DiceRecord({Die(6): 20})
-        answer = self.task_manager.process_request(request, updater_queue=q)
+        answer = self.task_manager.process_request(request, update_queue=q)
 
         self.assertEqual(answer, DiceTable.new().add_die(Die(6), 20))
 
@@ -255,7 +255,7 @@ class TestTaskManager(unittest.TestCase):
     def test_process_request_with_queue_no_tables_saved_because_already_saved(self):
         initial_queue = Queue()
         request = DiceRecord({Die(6): 10})
-        answer = self.task_manager.process_request(request, updater_queue=initial_queue)
+        answer = self.task_manager.process_request(request, update_queue=initial_queue)
         expected = DiceTable.new().add_die(Die(6), 10)
 
         self.assertEqual(answer, expected)
@@ -266,7 +266,7 @@ class TestTaskManager(unittest.TestCase):
         self.assertEqual(initial_queue.get(), 'STOP')
 
         second_queue = Queue()
-        second_answer = self.task_manager.process_request(request, updater_queue=second_queue)
+        second_answer = self.task_manager.process_request(request, update_queue=second_queue)
 
         self.assertEqual(second_queue.get(), 'STOP')
         self.assertEqual(second_answer, expected)

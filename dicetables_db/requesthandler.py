@@ -1,3 +1,5 @@
+import json
+from queue import Queue
 import string
 
 from dicetables_db.connections.sql_connection import SQLConnection
@@ -7,8 +9,8 @@ from dicetables_db.connections.baseconnection import BaseConnection
 from insertandretrieve import DiceTableInsertionAndRetrieval
 from taskmanager import TaskManager
 
-from dicetables import (Parser, ParseError, DiceRecordError, InvalidEventsError, LimitsError,
-                        DiceTable, DiceRecord, EventsCalculations)
+from dicetables import (Parser, DiceTable, DiceRecord, EventsCalculations,
+                        ParseError, LimitsError, InvalidEventsError)
 
 
 class RequestHandler(object):
@@ -16,7 +18,6 @@ class RequestHandler(object):
         self._conn = connection
         self._task_manager = TaskManager(DiceTableInsertionAndRetrieval(self._conn))
         self._table = DiceTable.new()
-        self._calc = EventsCalculations(self._table)
         self._parser = Parser(ignore_case=True)
 
     @classmethod
@@ -27,7 +28,7 @@ class RequestHandler(object):
     def using_mongo_db(cls, db_name, collection_name, ip='localhost', port=27017):
         return cls(MongoDBConnection(db_name, collection_name, ip, port))
 
-    def request_dice_table_construction(self, instructions: str,
+    def request_dice_table_construction(self, instructions: str, update_queue: Queue = None,
                                         num_delimiter: str = '*', pairs_delimiter: str = '&') -> None:
 
         reserved_characters = '_[]{}(),: -=\x0b\x0c' + string.digits + string.ascii_letters
@@ -46,11 +47,38 @@ class RequestHandler(object):
             die = self._parser.parse_die_within_limits(die)
             record = record.add_die(die, number)
 
-        self._table = self._task_manager.process_request(record)
-        self._calc = EventsCalculations(self._table)
+        self._table = self._task_manager.process_request(record, update_queue=update_queue)
 
     def get_table(self):
         return self._table
 
-    def get_table_str(self):
-        return self._calc.full_table_string()
+    def close_connection(self):
+        self._conn.close()
+
+    def get_response(self, input_str, update_queue=None):
+        errors = (ValueError, SyntaxError, AttributeError, IndexError, ParseError, LimitsError, InvalidEventsError)
+
+        try:
+            self.request_dice_table_construction(input_str, update_queue)
+            return make_dict(self._table)
+        except errors as e:
+            return json.dumps({'error': e.args[0], 'type': e.__class__.__name__})
+
+
+def make_dict(dice_table: DiceTable):
+    calc = EventsCalculations(dice_table)
+    out = dict()
+    out['repr'] = repr(dice_table).replace('Detailed', '')
+
+    out['data'] = calc.percentage_axes()
+    out['tableString'] = calc.full_table_string()
+
+    for_scinum_lst = [el.split(': ') for el in calc.full_table_string(6, -1).split('\n')[:-1]]
+    for_scinum_dict = {int(pair[0]): pair[1].split('e+') for pair in for_scinum_lst}
+
+    out['forSciNum'] = for_scinum_dict
+
+    out['range'] = calc.info.events_range()
+    out['mean'] = calc.mean()
+    out['stddev'] = calc.stddev()
+    return json.dumps(out)
