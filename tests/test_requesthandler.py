@@ -1,17 +1,24 @@
+import json
 from queue import Queue
 from string import printable
 import unittest
 
-from dicetables import (DiceTable, Parser, ParseError, LimitsError, InvalidEventsError,
+from dicetables import (DiceTable, DiceRecord, Parser,
+                        ParseError, LimitsError, InvalidEventsError, DiceRecordError,
                         Die, ModDie, WeightedDie, ModWeightedDie, StrongDie, Exploding, ExplodingOn, Modifier)
-from dicetables_db.requesthandler import RequestHandler
+
 from dicetables_db.connections.mongodb_connection import MongoDBConnection
 from dicetables_db.connections.sql_connection import SQLConnection
+
+from dicetables_db.requesthandler import RequestHandler, make_dict
 
 
 class TestRequestHandler(unittest.TestCase):
     def setUp(self):
         self.handler = RequestHandler.using_SQL(':memory:', 'test')
+
+    def tearDown(self):
+        self.handler.close_connection()
 
     def test_using_sql(self):
         handler = RequestHandler.using_SQL(':memory:', 'test')
@@ -36,8 +43,25 @@ class TestRequestHandler(unittest.TestCase):
         self.handler._table = DiceTable.new().add_die(Die(6), 2).add_die(Die(5))
         self.assertEqual(self.handler.get_table(), DiceTable.new().add_die(Die(6), 2).add_die(Die(5)))
 
+    def test_request_dice_table_empty_string(self):
+        self.handler.request_dice_table_construction('')
+        self.assertEqual(self.handler.get_table(), DiceTable.new())
+
+    def test_request_dice_table_empty_string_queue(self):
+        q = Queue()
+        self.handler.request_dice_table_construction('', q)
+        self.assertEqual(q.get(), 'STOP')
+
+    def test_request_dice_table_only_whitespace(self):
+        self.handler.request_dice_table_construction('   ')
+        self.assertEqual(self.handler.get_table(), DiceTable.new())
+
     def test_request_dice_table_construction(self):
         self.handler.request_dice_table_construction('2*Die(5) & 1*Die(4)')
+        self.assertEqual(self.handler.get_table(), DiceTable.new().add_die(Die(5), 2).add_die(Die(4)))
+
+    def test_request_dice_table_construction_leading_and_trailing_whitespace(self):
+        self.handler.request_dice_table_construction('   2  *  Die( 5 )   &   1  *  Die( 4 )   ')
         self.assertEqual(self.handler.get_table(), DiceTable.new().add_die(Die(5), 2).add_die(Die(4)))
 
     def test_request_dice_table_construction_single_dice_do_not_need_number(self):
@@ -141,12 +165,16 @@ class TestRequestHandler(unittest.TestCase):
         instructions = 'die(-1)'
         self.assertRaises(InvalidEventsError, self.handler.request_dice_table_construction, instructions)
 
+        instructions = '-2*die(2)'
+        self.assertRaises(DiceRecordError, self.handler.request_dice_table_construction, instructions)
+
     def test_request_dice_table_construction_errors(self):
-        errors = (ValueError, SyntaxError, AttributeError, IndexError, ParseError, LimitsError, InvalidEventsError)
+        errors = (ValueError, SyntaxError, AttributeError, IndexError,
+                  ParseError, LimitsError, InvalidEventsError, DiceRecordError)
         instructions = ['* Die(4)', '3 die(3)', '3 & die(3)', 'Die(4) * 3 * Die(5)', '4 $ die(5)',
                         '2 * die(5) $ 4 * die(6)', 'die("a")', 'die(5', 'die(5000)', 'notadie(5)',
                         'die(1, 2, 3)', 'WeightedDie({1, 2})', 'WeightedDie({-1: 1})', 'Die(-1)',
-                        'WeightedDie({1: -1})']
+                        'WeightedDie({1: -1})', '-2*Die(2)']
         for instruction in instructions:
             self.assertRaises(errors, self.handler.request_dice_table_construction, instruction)
 
@@ -163,8 +191,168 @@ class TestRequestHandler(unittest.TestCase):
         self.handler.close_connection()
         self.assertRaises(AttributeError, self.handler.request_dice_table_construction, '1*Die(6)')
 
-    def test_make_dict(self):
-        raise NotImplementedError
+    def test_make_dict_simple_table(self):
+        answer = make_dict(DiceTable.new().add_die(Die(4)))
+        expected = {"repr": "<DiceTable containing [1D4]>",
+                    "data": [[1, 2, 3, 4], [25.0, 25.0, 25.0, 25.0]],
+                    "tableString": "1: 1\n2: 1\n3: 1\n4: 1\n",
+                    "forSciNum": {
+                        "1": ["1.00000", "0"],
+                        "2": ["1.00000", "0"],
+                        "3": ["1.00000", "0"],
+                        "4": ["1.00000", "0"]
+                    },
+                    "range": [1, 4],
+                    "mean": 2.5,
+                    "stddev": 1.118}
+        self.assertIsInstance(answer, str)
+        self.assertEqual(json.loads(answer), expected)
 
-    def test_get_response(self):
-        raise NotImplementedError
+    def test_make_dict_large_number_table(self):
+        table = DiceTable({1: 1, 2: 99**1000}, DiceRecord.new())
+        answer = make_dict(table)
+        expected = {"repr": "<DiceTable containing []>",
+                    "data": [[1, 2], [0.0, 100.0]],
+                    "tableString": "1: 1\n2: 4.317e+1995\n",
+                    "forSciNum": {"1": ["1.00000", "0"], "2": ['4.31712', '1995']},
+                    "range": [1, 2],
+                    "mean": 2.0,
+                    "stddev": 0.0}
+
+        self.assertEqual(json.loads(answer), expected)
+
+    def test_make_dict_complex_table(self):
+        table = DiceTable.new().add_die(WeightedDie({1: 1, 2: 100}), 3).add_die(Die(3), 4)
+        answer = make_dict(table)
+        expected = {
+            "repr": "<DiceTable containing [3D2  W:101, 4D3]>",
+            "data": [
+                [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18],
+                [
+                    1.1982594418859808e-06,
+                    0.0003642708703333381,
+                    0.03739767718126146,
+                    1.3456645253890265,
+                    5.158290012360165,
+                    12.5646082019349,
+                    19.860922579966175,
+                    23.34569349930233,
+                    19.53306801233119,
+                    12.126745029718691,
+                    4.828985550800502,
+                    1.1982594418859807
+                ]
+            ],
+            "tableString": (" 7: 1\n 8: 304\n 9: 31,210\n10: 1,123,016\n11: 4,304,819\n12: 1.049e+7\n13: 1.657e+7\n" +
+                            "14: 1.948e+7\n15: 1.630e+7\n16: 1.012e+7\n17: 4,030,000\n18: 1,000,000\n"),
+            "forSciNum": {
+                "7": ["1.00000", "0"],
+                "8": ["3.04000", "2"],
+                "9": ["3.12100", "4"],
+                "10": ["1.12302", "6"],
+                "11": ["4.30482", "6"],
+                "12": ["1.04857", "7"],
+                "13": ["1.65748", "7"],
+                "14": ["1.94830", "7"],
+                "15": ["1.63012", "7"],
+                "16": ["1.01203", "7"],
+                "17": ["4.03000", "6"],
+                "18": ["1.00000", "6"]},
+            "range": [7, 18],
+            "mean": 13.970297029702971,
+            "stddev": 1.642}
+
+        self.assertEqual(json.loads(answer), expected)
+
+    def test_get_response_error_response(self):
+        instructions = '2*Die(5) & *Die(4)'
+        response = self.handler.get_response(instructions)
+        self.assertEqual(json.loads(response),
+                         {"error": "invalid literal for int() with base 10: ' '", "type": "ValueError"})
+
+        instructions = '3 die(3)'
+        response = self.handler.get_response(instructions)
+        self.assertEqual(json.loads(response),
+                         {'error': 'invalid syntax', 'type': 'SyntaxError'})
+
+        instructions = '3 * die("a")'
+        response = self.handler.get_response(instructions)
+        self.assertEqual(json.loads(response),
+                         {'error': "'Str' object has no attribute 'n'", 'type': 'AttributeError'})
+
+        instructions = 'didfde(3)'
+        response = self.handler.get_response(instructions)
+        self.assertEqual(json.loads(response),
+                         {'error': 'Die class: <didfde> not recognized by parser.', 'type': 'ParseError'})
+
+        instructions = 'die(1, 2, 3)'
+        response = self.handler.get_response(instructions)
+        self.assertEqual(json.loads(response),
+                         {'error': 'tuple index out of range', 'type': 'IndexError'})
+
+        instructions = 'die(30000)'
+        response = self.handler.get_response(instructions)
+        self.assertEqual(json.loads(response),
+                         {'error': 'Max die_size: 500', 'type': 'LimitsError'})
+
+        instructions = 'die(-1)'
+        response = self.handler.get_response(instructions)
+        self.assertEqual(json.loads(response),
+                         {'error': 'events may not be empty. a good alternative is the identity - {0: 1}.',
+                          'type': 'InvalidEventsError'})
+
+        instructions = '-2*die(2)'
+        response = self.handler.get_response(instructions)
+        self.assertEqual(json.loads(response),
+                         {'error': 'Tried to add_die or remove_die with a negative number.', 'type': 'DiceRecordError'})
+
+    def test_get_response_empty_string_and_whitespace(self):
+        q = Queue()
+        empty_str_answer = self.handler.get_response('', q)
+        self.assertEqual(q.get(), 'STOP')
+
+        empty_response = {
+            "repr": "<DiceTable containing []>",
+            "data": [[0], [100.0]],
+            "tableString": "0: 1\n",
+            "forSciNum": {"0": ["1.00000", "0"]},
+            "range": [0, 0],
+            "mean": 0.0,
+            "stddev": 0.0
+        }
+        self.assertEqual(json.loads(empty_str_answer), empty_response)
+
+        whitespace_str_answer = self.handler.get_response('   ')
+        self.assertEqual(json.loads(whitespace_str_answer), empty_response)
+
+    def test_get_response_no_error(self):
+        table = DiceTable.new().add_die(Die(6), 10).add_die(Die(3), 12)
+        expected = make_dict(table)
+        instructions = '10*Die(6)&12*Die(3)'
+        reverse_instructions = '12*Die(3)&10*Die(6)'
+        self.assertEqual(self.handler.get_response(instructions), expected)
+        self.assertEqual(self.handler.get_response(reverse_instructions), expected)
+
+    def test_get_response_is_connecting_to_database(self):
+        instructions = '10*Die(6)'
+        self.handler.get_response(instructions)
+        answer = self.handler._conn.find()
+        expected = [
+            {'group': 'Die(6)', 'score': 30, 'Die(6)': 5},
+            {'group': 'Die(6)', 'score': 60, 'Die(6)': 10}
+        ]
+        for index, partial_document in enumerate(expected):
+            answer_document = answer[index]
+            for key in partial_document:
+                self.assertEqual(answer_document[key], partial_document[key])
+
+    def test_get_response_with_queue(self):
+        q = Queue()
+        instructions = '10*Die(6)'
+        expected = make_dict(DiceTable.new().add_die(Die(6), 10))
+        answer = self.handler.get_response(instructions, q)
+        self.assertEqual(expected, answer)
+        expected_queue = ['<DiceTable containing [5D6]>', '<DiceTable containing [10D6]>', 'STOP']
+        for element in expected_queue:
+            self.assertEqual(q.get(), element)
+

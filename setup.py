@@ -1,3 +1,5 @@
+# https://packaging.python.org/ for documentation
+
 from setuptools import setup, find_packages
 
 
@@ -29,6 +31,3 @@ setup(name='dicetables_db',
       python_reqires='>=3',
       include_package_data=True,
       zip_safe=False)
-
-# TODO a script for setting up and executing bash script for setting up mondodb. also include data stuff
-# https://packaging.python.org/

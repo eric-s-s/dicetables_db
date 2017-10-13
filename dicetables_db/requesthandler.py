@@ -10,7 +10,7 @@ from insertandretrieve import DiceTableInsertionAndRetrieval
 from taskmanager import TaskManager
 
 from dicetables import (Parser, DiceTable, DiceRecord, EventsCalculations,
-                        ParseError, LimitsError, InvalidEventsError)
+                        ParseError, LimitsError, InvalidEventsError, DiceRecordError)
 
 
 class RequestHandler(object):
@@ -31,12 +31,15 @@ class RequestHandler(object):
     def request_dice_table_construction(self, instructions: str, update_queue: Queue = None,
                                         num_delimiter: str = '*', pairs_delimiter: str = '&') -> None:
 
-        reserved_characters = '_[]{}(),: -=\x0b\x0c' + string.digits + string.ascii_letters
-        if num_delimiter in reserved_characters or pairs_delimiter in reserved_characters:
-            raise ValueError('Delimiters may not be {!r}'.format(reserved_characters))
+        self._raise_error_for_bad_delimiter(num_delimiter, pairs_delimiter)
 
         record = DiceRecord.new()
-        number_die_pairs = instructions.split(pairs_delimiter)
+
+        if instructions.strip() == '':
+            number_die_pairs = []
+        else:
+            number_die_pairs = instructions.split(pairs_delimiter)
+
         for pair in number_die_pairs:
             if num_delimiter not in pair:
                 number = 1
@@ -49,6 +52,12 @@ class RequestHandler(object):
 
         self._table = self._task_manager.process_request(record, update_queue=update_queue)
 
+    @staticmethod
+    def _raise_error_for_bad_delimiter(num_delimiter, pairs_delimiter):
+        reserved_characters = '_[]{}(),: -=\x0b\x0c' + string.digits + string.ascii_letters
+        if num_delimiter in reserved_characters or pairs_delimiter in reserved_characters:
+            raise ValueError('Delimiters may not be {!r}'.format(reserved_characters))
+
     def get_table(self):
         return self._table
 
@@ -56,7 +65,8 @@ class RequestHandler(object):
         self._conn.close()
 
     def get_response(self, input_str, update_queue=None):
-        errors = (ValueError, SyntaxError, AttributeError, IndexError, ParseError, LimitsError, InvalidEventsError)
+        errors = (ValueError, SyntaxError, AttributeError, IndexError,
+                  ParseError, LimitsError, InvalidEventsError, DiceRecordError)
 
         try:
             self.request_dice_table_construction(input_str, update_queue)
