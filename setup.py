@@ -8,7 +8,7 @@ def readme():
         return f.read()
 
 setup(name='dicetables_db',
-      version='1.0.0',
+      version='1.0.1',
       description='a DiceTable db for a server',
       long_description=readme(),
       keywords='dice, die, statistics, table, probability, combinations',
@@ -28,6 +28,6 @@ setup(name='dicetables_db',
       ],
       packages=find_packages(exclude=['tests*', 'frontend*']),
       install_requires=['dicetables'],
-      python_reqires='>=3',
+      python_requires='>=3',
       include_package_data=True,
       zip_safe=False)

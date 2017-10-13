@@ -6,8 +6,8 @@ from dicetables_db.connections.sql_connection import SQLConnection
 from dicetables_db.connections.mongodb_connection import MongoDBConnection
 from dicetables_db.connections.baseconnection import BaseConnection
 
-from insertandretrieve import DiceTableInsertionAndRetrieval
-from taskmanager import TaskManager
+from dicetables_db.insertandretrieve import DiceTableInsertionAndRetrieval
+from dicetables_db.taskmanager import TaskManager
 
 from dicetables import (Parser, DiceTable, DiceRecord, EventsCalculations,
                         ParseError, LimitsError, InvalidEventsError, DiceRecordError)

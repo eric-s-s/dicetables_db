@@ -355,4 +355,3 @@ class TestRequestHandler(unittest.TestCase):
         expected_queue = ['<DiceTable containing [5D6]>', '<DiceTable containing [10D6]>', 'STOP']
         for element in expected_queue:
             self.assertEqual(q.get(), element)
-
