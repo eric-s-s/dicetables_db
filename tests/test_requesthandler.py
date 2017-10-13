@@ -1,4 +1,3 @@
-import json
 from queue import Queue
 from string import printable
 import unittest
@@ -193,117 +192,107 @@ class TestRequestHandler(unittest.TestCase):
 
     def test_make_dict_simple_table(self):
         answer = make_dict(DiceTable.new().add_die(Die(4)))
-        expected = {"repr": "<DiceTable containing [1D4]>",
-                    "data": [[1, 2, 3, 4], [25.0, 25.0, 25.0, 25.0]],
-                    "tableString": "1: 1\n2: 1\n3: 1\n4: 1\n",
-                    "forSciNum": {
-                        "1": ["1.00000", "0"],
-                        "2": ["1.00000", "0"],
-                        "3": ["1.00000", "0"],
-                        "4": ["1.00000", "0"]
-                    },
-                    "range": [1, 4],
-                    "mean": 2.5,
-                    "stddev": 1.118}
-        self.assertIsInstance(answer, str)
-        self.assertEqual(json.loads(answer), expected)
+        expected = {
+            'repr': '<DiceTable containing [1D4]>',
+            'data': [(1, 2, 3, 4), (25.0, 25.0, 25.0, 25.0)],
+            'tableString': '1: 1\n2: 1\n3: 1\n4: 1\n',
+            'forSciNum': {1: ['1.00000', '0'], 2: ['1.00000', '0'], 3: ['1.00000', '0'], 4: ['1.00000', '0']},
+            'range': (1, 4),
+            'mean': 2.5,
+            'stddev': 1.118
+        }
+
+        self.assertEqual(answer, expected)
 
     def test_make_dict_large_number_table(self):
         table = DiceTable({1: 1, 2: 99**1000}, DiceRecord.new())
         answer = make_dict(table)
-        expected = {"repr": "<DiceTable containing []>",
-                    "data": [[1, 2], [0.0, 100.0]],
-                    "tableString": "1: 1\n2: 4.317e+1995\n",
-                    "forSciNum": {"1": ["1.00000", "0"], "2": ['4.31712', '1995']},
-                    "range": [1, 2],
-                    "mean": 2.0,
-                    "stddev": 0.0}
+        expected = {
+            'data': [(1, 2), (0.0, 100.0)],
+            'forSciNum': {1: ['1.00000', '0'], 2: ['4.31712', '1995']},
+            'mean': 2.0,
+            'range': (1, 2),
+            'repr': '<DiceTable containing []>',
+            'stddev': 0.0,
+            'tableString': '1: 1\n2: 4.317e+1995\n'
+        }
 
-        self.assertEqual(json.loads(answer), expected)
+        self.assertEqual(answer, expected)
 
     def test_make_dict_complex_table(self):
         table = DiceTable.new().add_die(WeightedDie({1: 1, 2: 100}), 3).add_die(Die(3), 4)
         answer = make_dict(table)
         expected = {
-            "repr": "<DiceTable containing [3D2  W:101, 4D3]>",
-            "data": [
-                [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18],
-                [
-                    1.1982594418859808e-06,
-                    0.0003642708703333381,
-                    0.03739767718126146,
-                    1.3456645253890265,
-                    5.158290012360165,
-                    12.5646082019349,
-                    19.860922579966175,
-                    23.34569349930233,
-                    19.53306801233119,
-                    12.126745029718691,
-                    4.828985550800502,
-                    1.1982594418859807
-                ]
+            'data': [
+                (7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18),
+                (1.1982594418859808e-06, 0.0003642708703333381, 0.03739767718126146, 1.3456645253890265,
+                 5.158290012360165, 12.5646082019349, 19.860922579966175, 23.34569349930233, 19.53306801233119,
+                 12.126745029718691, 4.828985550800502, 1.1982594418859807)
             ],
-            "tableString": (" 7: 1\n 8: 304\n 9: 31,210\n10: 1,123,016\n11: 4,304,819\n12: 1.049e+7\n13: 1.657e+7\n" +
-                            "14: 1.948e+7\n15: 1.630e+7\n16: 1.012e+7\n17: 4,030,000\n18: 1,000,000\n"),
-            "forSciNum": {
-                "7": ["1.00000", "0"],
-                "8": ["3.04000", "2"],
-                "9": ["3.12100", "4"],
-                "10": ["1.12302", "6"],
-                "11": ["4.30482", "6"],
-                "12": ["1.04857", "7"],
-                "13": ["1.65748", "7"],
-                "14": ["1.94830", "7"],
-                "15": ["1.63012", "7"],
-                "16": ["1.01203", "7"],
-                "17": ["4.03000", "6"],
-                "18": ["1.00000", "6"]},
-            "range": [7, 18],
-            "mean": 13.970297029702971,
-            "stddev": 1.642}
-
-        self.assertEqual(json.loads(answer), expected)
+            'forSciNum': {
+                7: ['1.00000', '0'], 8: ['3.04000', '2'], 9: ['3.12100', '4'], 10: ['1.12302', '6'],
+                11: ['4.30482', '6'], 12: ['1.04857', '7'], 13: ['1.65748', '7'], 14: ['1.94830', '7'],
+                15: ['1.63012', '7'], 16: ['1.01203', '7'], 17: ['4.03000', '6'], 18: ['1.00000', '6']
+            },
+            'mean': 13.970297029702971,
+            'range': (7, 18),
+            'repr': '<DiceTable containing [3D2  W:101, 4D3]>',
+            'stddev': 1.642,
+            'tableString': (' 7: 1\n' +
+                            ' 8: 304\n' +
+                            ' 9: 31,210\n' +
+                            '10: 1,123,016\n' +
+                            '11: 4,304,819\n' +
+                            '12: 1.049e+7\n' +
+                            '13: 1.657e+7\n' +
+                            '14: 1.948e+7\n' +
+                            '15: 1.630e+7\n' +
+                            '16: 1.012e+7\n' +
+                            '17: 4,030,000\n' +
+                            '18: 1,000,000\n')
+        }
+        self.assertEqual(answer, expected)
 
     def test_get_response_error_response(self):
         instructions = '2*Die(5) & *Die(4)'
         response = self.handler.get_response(instructions)
-        self.assertEqual(json.loads(response),
+        self.assertEqual(response,
                          {"error": "invalid literal for int() with base 10: ' '", "type": "ValueError"})
 
         instructions = '3 die(3)'
         response = self.handler.get_response(instructions)
-        self.assertEqual(json.loads(response),
+        self.assertEqual(response,
                          {'error': 'invalid syntax', 'type': 'SyntaxError'})
 
         instructions = '3 * die("a")'
         response = self.handler.get_response(instructions)
-        self.assertEqual(json.loads(response),
+        self.assertEqual(response,
                          {'error': "'Str' object has no attribute 'n'", 'type': 'AttributeError'})
 
         instructions = 'didfde(3)'
         response = self.handler.get_response(instructions)
-        self.assertEqual(json.loads(response),
+        self.assertEqual(response,
                          {'error': 'Die class: <didfde> not recognized by parser.', 'type': 'ParseError'})
 
         instructions = 'die(1, 2, 3)'
         response = self.handler.get_response(instructions)
-        self.assertEqual(json.loads(response),
+        self.assertEqual(response,
                          {'error': 'tuple index out of range', 'type': 'IndexError'})
 
         instructions = 'die(30000)'
         response = self.handler.get_response(instructions)
-        self.assertEqual(json.loads(response),
+        self.assertEqual(response,
                          {'error': 'Max die_size: 500', 'type': 'LimitsError'})
 
         instructions = 'die(-1)'
         response = self.handler.get_response(instructions)
-        self.assertEqual(json.loads(response),
+        self.assertEqual(response,
                          {'error': 'events may not be empty. a good alternative is the identity - {0: 1}.',
                           'type': 'InvalidEventsError'})
 
         instructions = '-2*die(2)'
         response = self.handler.get_response(instructions)
-        self.assertEqual(json.loads(response),
+        self.assertEqual(response,
                          {'error': 'Tried to add_die or remove_die with a negative number.', 'type': 'DiceRecordError'})
 
     def test_get_response_empty_string_and_whitespace(self):
@@ -311,19 +300,17 @@ class TestRequestHandler(unittest.TestCase):
         empty_str_answer = self.handler.get_response('', q)
         self.assertEqual(q.get(), 'STOP')
 
-        empty_response = {
-            "repr": "<DiceTable containing []>",
-            "data": [[0], [100.0]],
-            "tableString": "0: 1\n",
-            "forSciNum": {"0": ["1.00000", "0"]},
-            "range": [0, 0],
-            "mean": 0.0,
-            "stddev": 0.0
-        }
-        self.assertEqual(json.loads(empty_str_answer), empty_response)
+        empty_response = {'data': [(0,), (100.0,)],
+                          'forSciNum': {0: ['1.00000', '0']},
+                          'mean': 0.0,
+                          'range': (0, 0),
+                          'repr': '<DiceTable containing []>',
+                          'stddev': 0.0,
+                          'tableString': '0: 1\n'}
+        self.assertEqual(empty_str_answer, empty_response)
 
         whitespace_str_answer = self.handler.get_response('   ')
-        self.assertEqual(json.loads(whitespace_str_answer), empty_response)
+        self.assertEqual(whitespace_str_answer, empty_response)
 
     def test_get_response_no_error(self):
         table = DiceTable.new().add_die(Die(6), 10).add_die(Die(3), 12)

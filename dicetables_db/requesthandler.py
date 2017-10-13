@@ -1,4 +1,3 @@
-import json
 from queue import Queue
 import string
 
@@ -72,7 +71,7 @@ class RequestHandler(object):
             self.request_dice_table_construction(input_str, update_queue)
             return make_dict(self._table)
         except errors as e:
-            return json.dumps({'error': e.args[0], 'type': e.__class__.__name__})
+            return {'error': e.args[0], 'type': e.__class__.__name__}
 
 
 def make_dict(dice_table: DiceTable):
@@ -91,4 +90,4 @@ def make_dict(dice_table: DiceTable):
     out['range'] = calc.info.events_range()
     out['mean'] = calc.mean()
     out['stddev'] = calc.stddev()
-    return json.dumps(out)
+    return out
