@@ -17,3 +17,5 @@ tox.ini
 *.txt
 .tox
 .idea
+tester.db
+tests/test_db
