@@ -5,6 +5,8 @@ from dicetables_db.connections.sql_connection import SQLConnection
 from dicetables_db.connections.mongodb_connection import MongoDBConnection
 from dicetables_db.connections.baseconnection import BaseConnection
 
+from dicetables_db.tools.dbprep import get_score
+
 from dicetables_db.insertandretrieve import DiceTableInsertionAndRetrieval
 from dicetables_db.taskmanager import TaskManager
 
@@ -13,19 +15,20 @@ from dicetables import (Parser, DiceTable, DiceRecord, EventsCalculations,
 
 
 class RequestHandler(object):
-    def __init__(self, connection: BaseConnection) -> None:
+    def __init__(self, connection: BaseConnection, max_score=12000) -> None:
         self._conn = connection
         self._task_manager = TaskManager(DiceTableInsertionAndRetrieval(self._conn))
         self._table = DiceTable.new()
         self._parser = Parser(ignore_case=True)
+        self._max_score = max_score
 
     @classmethod
-    def using_SQL(cls, db_path, collection_name):
-        return cls(SQLConnection(db_path, collection_name))
+    def using_SQL(cls, db_path, collection_name, max_score=12000):
+        return cls(SQLConnection(db_path, collection_name), max_score=max_score)
 
     @classmethod
-    def using_mongo_db(cls, db_name, collection_name, ip='localhost', port=27017):
-        return cls(MongoDBConnection(db_name, collection_name, ip, port))
+    def using_mongo_db(cls, db_name, collection_name, ip='localhost', port=27017, max_score=12000):
+        return cls(MongoDBConnection(db_name, collection_name, ip, port), max_score=max_score)
 
     def request_dice_table_construction(self, instructions: str, update_queue: Queue = None,
                                         num_delimiter: str = '*', pairs_delimiter: str = '&') -> None:
@@ -49,6 +52,8 @@ class RequestHandler(object):
             die = self._parser.parse_die_within_limits(die)
             record = record.add_die(die, number)
 
+        self._check_record_against_max_score(record)
+
         self._table = self._task_manager.process_request(record, update_queue=update_queue)
 
     @staticmethod
@@ -56,6 +61,10 @@ class RequestHandler(object):
         reserved_characters = '_[]{}(),: -=\x0b\x0c' + string.digits + string.ascii_letters
         if num_delimiter in reserved_characters or pairs_delimiter in reserved_characters:
             raise ValueError('Delimiters may not be {!r}'.format(reserved_characters))
+
+    def _check_record_against_max_score(self, record):
+        if get_score(record.get_dict().items()) > self._max_score:
+            raise ValueError('The sum of all die_size*die_number must be <= {}'.format(self._max_score))
 
     def get_table(self):
         return self._table

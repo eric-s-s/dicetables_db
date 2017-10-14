@@ -37,6 +37,16 @@ class TestRequestHandler(unittest.TestCase):
         self.assertEqual(conn.get_info()['ip'], 'localhost')
         self.assertEqual(conn.get_info()['port'], '27017')
 
+    def test_init_default_max_score(self):
+        self.assertEqual(self.handler._max_score, 12000)
+        new_handler = RequestHandler.using_mongo_db('test_db', 'test', max_score=10)
+        self.assertEqual(new_handler._max_score, 10)
+        new_handler.close_connection()
+
+        new_handler = RequestHandler.using_SQL(':memory:', 'test', max_score=100)
+        self.assertEqual(new_handler._max_score, 100)
+        new_handler.close_connection()
+
     def test_get_table(self):
         self.assertEqual(self.handler.get_table(), DiceTable.new())
         self.handler._table = DiceTable.new().add_die(Die(6), 2).add_die(Die(5))
@@ -54,6 +64,13 @@ class TestRequestHandler(unittest.TestCase):
     def test_request_dice_table_only_whitespace(self):
         self.handler.request_dice_table_construction('   ')
         self.assertEqual(self.handler.get_table(), DiceTable.new())
+
+    def test_request_dice_table_construction_request_exceeds_max_score(self):
+        handler = RequestHandler.using_SQL(':memory:', 'test', max_score=12)
+        handler.request_dice_table_construction('2*Die(6)')
+        with self.assertRaises(ValueError) as cm:
+            handler.request_dice_table_construction('1*Die(6)&1*Die(7)')
+        self.assertEqual(cm.exception.args[0], 'The sum of all die_size*die_number must be <= 12')
 
     def test_request_dice_table_construction(self):
         self.handler.request_dice_table_construction('2*Die(5) & 1*Die(4)')
