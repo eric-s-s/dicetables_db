@@ -78,7 +78,7 @@ class TestDBPrep(unittest.TestCase):
         retriever = prep.SearchParams(table_list)
         searcher = retriever.get_search_params()
         self.assertEqual(next(searcher), [('Die(1)&Die(2)&Die(3)',
-                                                          {'Die(1)': 4, 'Die(2)': 2, 'Die(3)': 1})])
+                                          {'Die(1)': 4, 'Die(2)': 2, 'Die(3)': 1})])
         self.assertEqual(next(searcher),
                          [('Die(1)&Die(2)', {'Die(1)': 4, 'Die(2)': 2}),
                           ('Die(1)&Die(3)', {'Die(1)': 4, 'Die(3)': 1}),
