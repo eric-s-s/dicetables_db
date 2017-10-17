@@ -71,15 +71,22 @@ class TestRequestHandler(unittest.TestCase):
         handler.request_dice_table_construction('6*WeightedDie({1: 2, 2: 10})')
         with self.assertRaises(ValueError) as cm:
             handler.request_dice_table_construction('1*Die(6)&1*Die(7)')
-        self.assertEqual(cm.exception.args[0], 'The sum of all die_dict*die_number must be <= 12')
+        self.assertEqual(cm.exception.args[0], 'The sum of all max(die_size, len(die_dict))*die_number must be <= 12')
 
-    def test_request_dice_table_construction_exceed_max_dice_value_based_on_dict_len(self):
+    def test_request_dice_table_construction_exceed_max_dice_value_based_on_max_of_dict_len_and_die_size(self):
         handler = RequestHandler.using_SQL(':memory:', 'test', max_dice_value=12)
+
+        self.assertEqual(len(Exploding(Die(4)).get_dict()), 10)
         handler.request_dice_table_construction('Exploding(Die(4))')
+        self.assertEqual(len(Exploding(Die(5)).get_dict()), 13)
+        self.assertEqual(Exploding(Die(5)).get_size(), 5)
         self.assertRaises(ValueError, handler.request_dice_table_construction, 'Exploding(Die(5))')
 
-        handler.request_dice_table_construction('6*WeightedDie({1:1, 500: 1})')
-        self.assertRaises(ValueError, handler.request_dice_table_construction, '7*WeightedDie({1:1, 500: 1})')
+        self.assertEqual(WeightedDie({1: 1, 12: 1}).get_size(), 12)
+        handler.request_dice_table_construction('WeightedDie({1: 1, 12: 1})')
+        self.assertEqual(len(WeightedDie({1: 1, 13: 1}).get_dict()), 2)
+        self.assertEqual(WeightedDie({1: 1, 13: 1}).get_size(), 13)
+        self.assertRaises(ValueError, handler.request_dice_table_construction, 'WeightedDie({1: 1, 13: 1})')
 
     def test_request_dice_table_construction(self):
         self.handler.request_dice_table_construction('2*Die(5) & 1*Die(4)')

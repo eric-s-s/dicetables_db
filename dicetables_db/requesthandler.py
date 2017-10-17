@@ -61,8 +61,11 @@ class RequestHandler(object):
             raise ValueError('Delimiters may not be {!r}'.format(reserved_characters))
 
     def _check_record_against_max_dice_value(self, record):
-        if sum((len(die.get_dict()) * number) for die, number in record.get_dict().items()) > self._max_dice_value:
-            raise ValueError('The sum of all die_dict*die_number must be <= {}'.format(self._max_dice_value))
+        if sum(
+                (max(len(die.get_dict()), die.get_size()) * number) for die, number in record.get_dict().items()
+        ) > self._max_dice_value:
+            raise ValueError('The sum of all max(die_size, len(die_dict))*die_number must be <= {}'
+                             .format(self._max_dice_value))
 
     def get_table(self):
         return self._table
