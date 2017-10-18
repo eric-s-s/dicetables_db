@@ -87,7 +87,8 @@ class RequestHandler(object):
 def make_dict(dice_table: DiceTable):
     calc = EventsCalculations(dice_table)
     out = dict()
-    out['repr'] = repr(dice_table).replace('Detailed', '')
+    out['diceStr'] = '\n'.join(['{!r}: {}'.format(die, number) for die, number in dice_table.get_list()])
+    out['name'] = repr(dice_table)
 
     out['data'] = calc.percentage_axes()
     out['tableString'] = calc.full_table_string()

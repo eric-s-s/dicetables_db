@@ -8,7 +8,7 @@ def readme():
         return f.read()
 
 setup(name='dicetables_db',
-      version='1.1.5',
+      version='1.1.6',
       description='a DiceTable db for a server',
       long_description=readme(),
       keywords='dice, die, statistics, table, probability, combinations',

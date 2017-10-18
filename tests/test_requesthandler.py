@@ -226,7 +226,8 @@ class TestRequestHandler(unittest.TestCase):
     def test_make_dict_simple_table(self):
         answer = make_dict(DiceTable.new().add_die(Die(4)))
         expected = {
-            'repr': '<DiceTable containing [1D4]>',
+            'name': '<DiceTable containing [1D4]>',
+            'diceStr': 'Die(4): 1',
             'data': [(1, 2, 3, 4), (25.0, 25.0, 25.0, 25.0)],
             'tableString': '1: 1\n2: 1\n3: 1\n4: 1\n',
             'forSciNum': {1: ['1.00000', '0'], 2: ['1.00000', '0'], 3: ['1.00000', '0'], 4: ['1.00000', '0']},
@@ -245,7 +246,8 @@ class TestRequestHandler(unittest.TestCase):
             'forSciNum': {1: ['1.00000', '0'], 2: ['4.31712', '1995']},
             'mean': 2.0,
             'range': (1, 2),
-            'repr': '<DiceTable containing []>',
+            'name': '<DiceTable containing []>',
+            'diceStr': '',
             'stddev': 0.0,
             'tableString': '1: 1\n2: 4.317e+1995\n'
         }
@@ -256,7 +258,8 @@ class TestRequestHandler(unittest.TestCase):
         table = DiceTable.new().add_die(WeightedDie({1: 1, 2: 99}), 3).add_die(Die(3), 4)
         answer = make_dict(table)
         expected = {
-            'repr': '<DiceTable containing [3D2  W:100, 4D3]>',
+            'name': '<DiceTable containing [3D2  W:100, 4D3]>',
+            'diceStr': 'WeightedDie({1: 1, 2: 99}): 3\nDie(3): 4',
             'data': [
                 (7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18),
                 (1.234567901234568e-06, 0.0003716049382716049, 0.03777901234567901, 1.3467864197530863,
@@ -302,8 +305,6 @@ class TestRequestHandler(unittest.TestCase):
 
         self.assertEqual(table.calc.stddev(3), 0.471)
         self.assertEqual(answer['stddev'], 0.471)
-
-        print(make_dict(table))
 
     def test_get_response_error_response(self):
         instructions = '2*Die(5) & *Die(4)'
@@ -356,7 +357,8 @@ class TestRequestHandler(unittest.TestCase):
                           'forSciNum': {0: ['1.00000', '0']},
                           'mean': 0.0,
                           'range': (0, 0),
-                          'repr': '<DiceTable containing []>',
+                          'name': '<DiceTable containing []>',
+                          'diceStr': '',
                           'stddev': 0.0,
                           'tableString': '0: 1\n'}
         self.assertEqual(empty_str_answer, empty_response)
