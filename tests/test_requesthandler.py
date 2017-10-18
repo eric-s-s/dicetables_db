@@ -2,7 +2,7 @@ from queue import Queue
 from string import printable
 import unittest
 
-from dicetables import (DiceTable, DiceRecord, Parser,
+from dicetables import (DiceTable, DetailedDiceTable, DiceRecord, Parser,
                         ParseError, LimitsError, InvalidEventsError, DiceRecordError,
                         Die, ModDie, WeightedDie, ModWeightedDie, StrongDie, Exploding, ExplodingOn, Modifier)
 
@@ -253,38 +253,57 @@ class TestRequestHandler(unittest.TestCase):
         self.assertEqual(answer, expected)
 
     def test_make_dict_complex_table(self):
-        table = DiceTable.new().add_die(WeightedDie({1: 1, 2: 100}), 3).add_die(Die(3), 4)
+        table = DiceTable.new().add_die(WeightedDie({1: 1, 2: 99}), 3).add_die(Die(3), 4)
         answer = make_dict(table)
         expected = {
+            'repr': '<DiceTable containing [3D2  W:100, 4D3]>',
             'data': [
                 (7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18),
-                (1.1982594418859808e-06, 0.0003642708703333381, 0.03739767718126146, 1.3456645253890265,
-                 5.158290012360165, 12.5646082019349, 19.860922579966175, 23.34569349930233, 19.53306801233119,
-                 12.126745029718691, 4.828985550800502, 1.1982594418859807)
+                (1.234567901234568e-06, 0.0003716049382716049, 0.03777901234567901, 1.3467864197530863,
+                 5.16049012345679, 12.566786419753084, 19.861979012345678, 23.34457160493827, 19.53086790123457,
+                 12.124566666666665, 4.8279, 1.1978999999999997)
             ],
-            'forSciNum': {
-                7: ['1.00000', '0'], 8: ['3.04000', '2'], 9: ['3.12100', '4'], 10: ['1.12302', '6'],
-                11: ['4.30482', '6'], 12: ['1.04857', '7'], 13: ['1.65748', '7'], 14: ['1.94830', '7'],
-                15: ['1.63012', '7'], 16: ['1.01203', '7'], 17: ['4.03000', '6'], 18: ['1.00000', '6']
-            },
-            'mean': 13.970297029702971,
-            'range': (7, 18),
-            'repr': '<DiceTable containing [3D2  W:101, 4D3]>',
-            'stddev': 1.642,
             'tableString': (' 7: 1\n' +
-                            ' 8: 304\n' +
-                            ' 9: 31,210\n' +
-                            '10: 1,123,016\n' +
-                            '11: 4,304,819\n' +
-                            '12: 1.049e+7\n' +
-                            '13: 1.657e+7\n' +
-                            '14: 1.948e+7\n' +
-                            '15: 1.630e+7\n' +
-                            '16: 1.012e+7\n' +
-                            '17: 4,030,000\n' +
-                            '18: 1,000,000\n')
+                            ' 8: 301\n' +
+                            ' 9: 30,601\n' +
+                            '10: 1,090,897\n' +
+                            '11: 4,179,997\n' +
+                            '12: 1.018e+7\n' +
+                            '13: 1.609e+7\n' +
+                            '14: 1.891e+7\n' +
+                            '15: 1.582e+7\n' +
+                            '16: 9,820,899\n' +
+                            '17: 3,910,599\n' +
+                            '18: 970,299\n'),
+            'forSciNum': {
+                7: ['1.00000', '0'],
+                8: ['3.01000', '2'],
+                9: ['3.06010', '4'],
+                10: ['1.09090', '6'],
+                11: ['4.18000', '6'],
+                12: ['1.01791', '7'],
+                13: ['1.60882', '7'],
+                14: ['1.89091', '7'],
+                15: ['1.58200', '7'],
+                16: ['9.82090', '6'],
+                17: ['3.91060', '6'],
+                18: ['9.70299', '5']},
+            'range': (7, 18),
+            'mean': 13.97,
+            'stddev': 1.642
         }
         self.assertEqual(answer, expected)
+
+    def test_make_dict_mean_and_stddev_rounding(self):
+        table = DetailedDiceTable.new().add_die(WeightedDie({1: 1, 2: 2}))
+        answer = make_dict(table)
+        self.assertEqual(table.calc.mean(), 1.6666666666666667)
+        self.assertEqual(answer['mean'], 1.667)
+
+        self.assertEqual(table.calc.stddev(3), 0.471)
+        self.assertEqual(answer['stddev'], 0.471)
+
+        print(make_dict(table))
 
     def test_get_response_error_response(self):
         instructions = '2*Die(5) & *Die(4)'

@@ -98,6 +98,6 @@ def make_dict(dice_table: DiceTable):
     out['forSciNum'] = for_scinum_dict
 
     out['range'] = calc.info.events_range()
-    out['mean'] = calc.mean()
-    out['stddev'] = calc.stddev()
+    out['mean'] = round(calc.mean(), 3)
+    out['stddev'] = calc.stddev(3)
     return out
